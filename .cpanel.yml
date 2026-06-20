@@ -1,0 +1,10 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/tadbeer/law-website
+    - /bin/cp -R .next/standalone/* $DEPLOYPATH/
+    - /bin/cp -R .next/static $DEPLOYPATH/.next/static
+    - /bin/cp -R public $DEPLOYPATH/public
+    - /bin/cp server.js $DEPLOYPATH/server.js
+    - /bin/cp package.json $DEPLOYPATH/package.json
+    - /bin/cp .env* $DEPLOYPATH/ 2>/dev/null || true

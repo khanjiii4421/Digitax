@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/portal/layout,_N_T_/portal/ntn-registration/layout,_N_T_/portal/ntn-registration/page,_N_T_/portal/ntn-registration"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/portal/ntn-registration/__PAGE__",
+    "/portal/ntn-registration",
+    "/portal",
+    "/_index",
+    "/_head"
+  ]
+}
