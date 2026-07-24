@@ -42,6 +42,11 @@ digitax.db
 *.sqlite
 *.sqlite3
 
+# zip / large archives
+*.zip
+package.zip
+digitax-deploy.zip
+
 # vercel
 .vercel
 
