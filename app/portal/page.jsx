@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const serviceCards = [
   {
@@ -19,7 +19,7 @@ const serviceCards = [
     color: "from-blue-500 to-red-500",
     bgColor: "bg-blue-50",
     link: "/portal/family-tax",
-    available: false
+    available: true
   },
   {
     id: "ntn-registration",
@@ -106,6 +106,75 @@ const serviceCards = [
 
 export default function PortalDashboard() {
   const [showComingSoon, setShowComingSoon] = useState(null);
+  const [resumeData, setResumeData] = useState(null);
+  const [checkingResume, setCheckingResume] = useState(true);
+  const [dismissResume, setDismissResume] = useState(false);
+  const [inProgressCount, setInProgressCount] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/applications/resume")
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data?.hasResumable) {
+          setResumeData(data.data.application);
+        }
+        setCheckingResume(false);
+      })
+      .catch(() => setCheckingResume(false));
+
+    // Fetch stats
+    Promise.all([
+      fetch("/api/portal/applications").then(r => r.json()).catch(() => ({ success: false })),
+      fetch("/api/family-tax/applications").then(r => r.json()).catch(() => ({ success: false }))
+    ]).then(([ntnRes, familyRes]) => {
+      let list = [];
+      if (ntnRes.success && Array.isArray(ntnRes.applications)) {
+        list = list.concat(ntnRes.applications);
+      }
+      if (familyRes.success && Array.isArray(familyRes.data)) {
+        list = list.concat(familyRes.data.filter(item => !item.is_draft));
+      }
+
+      let inProg = 0;
+      let comp = 0;
+      list.forEach(app => {
+        if (app.status === 'Completed' || app.status === 'completed') comp++;
+        else inProg++;
+      });
+      setInProgressCount(inProg);
+      setCompletedCount(comp);
+    });
+  }, []);
+
+  const handleResume = () => {
+    window.location.href = `/portal/ntn-registration?id=${resumeData.id}&resume=1`;
+  };
+
+  const handleStartNew = async () => {
+    if (resumeData) {
+      await fetch("/api/applications/resume", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: resumeData.id }),
+      });
+    }
+    setResumeData(null);
+    setDismissResume(true);
+    window.location.href = "/portal/ntn-registration";
+  };
+
+  const handleDismissResume = async () => {
+    if (resumeData) {
+      await fetch("/api/applications/resume", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: resumeData.id }),
+      });
+    }
+    setResumeData(null);
+    setDismissResume(true);
+  };
 
   const handleCardClick = (card) => {
     if (card.available) {
@@ -126,6 +195,39 @@ export default function PortalDashboard() {
         </div>
       </div>
 
+      {/* Resume Prompt */}
+      {!checkingResume && resumeData && !dismissResume && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 md:p-6 relative overflow-hidden anim-fade-in">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/30 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-amber-800 text-sm">You have an unfinished application</p>
+              <p className="text-amber-700 text-xs mt-0.5">
+                Started {new Date(resumeData.created_at).toLocaleDateString()} &middot; Status: {resumeData.status}
+              </p>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button onClick={handleResume} className="flex-1 sm:flex-none bg-amber-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-amber-700 transition-all cursor-pointer">
+                Resume
+              </button>
+              <button onClick={handleStartNew} className="flex-1 sm:flex-none border border-amber-300 text-amber-700 text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-amber-100 transition-all cursor-pointer">
+                Start New
+              </button>
+              <button onClick={handleDismissResume} className="text-amber-400 hover:text-amber-600 p-2 cursor-pointer" title="Dismiss">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <div className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm">
@@ -133,14 +235,14 @@ export default function PortalDashboard() {
             <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           </div>
           <p className="text-xs text-text-secondary font-medium">In-Progress</p>
-          <p className="text-xl md:text-2xl font-bold text-primary mt-0.5">0</p>
+          <p className="text-xl md:text-2xl font-bold text-primary mt-0.5">{inProgressCount}</p>
         </div>
         <div className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center mb-2">
             <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
           <p className="text-xs text-text-secondary font-medium">Completed</p>
-          <p className="text-xl md:text-2xl font-bold text-success mt-0.5">0</p>
+          <p className="text-xl md:text-2xl font-bold text-success mt-0.5">{completedCount}</p>
         </div>
         <div className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center mb-2">
@@ -167,14 +269,19 @@ export default function PortalDashboard() {
             <button
               key={card.id}
               onClick={() => handleCardClick(card)}
-              className="flex flex-col items-center text-center gap-3 p-3 md:p-4 rounded-2xl hover:bg-gray-50 transition-all duration-200 cursor-pointer group"
+              className={`flex flex-col items-center text-center gap-3 p-3 md:p-4 rounded-2xl transition-all duration-200 cursor-pointer group relative ${card.available ? "bg-green-50/60 border-2 border-green-400 hover:bg-green-50 hover:shadow-md" : "hover:bg-gray-50"}`}
             >
-              <div className={`w-14 h-14 md:w-16 md:h-16 ${card.bgColor} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200 shrink-0`}>
+              {card.available && (
+                <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
+                  Active
+                </span>
+              )}
+              <div className={`w-14 h-14 md:w-16 md:h-16 ${card.bgColor} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200 shrink-0 ${card.available ? "ring-2 ring-green-400 ring-offset-2" : ""}`}>
                 <svg className="w-7 h-7 md:w-8 md:h-8 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={card.icon} />
                 </svg>
               </div>
-              <span className="text-[11px] md:text-xs font-semibold text-text-primary leading-tight">{card.title}</span>
+              <span className={`text-[11px] md:text-xs font-semibold leading-tight ${card.available ? "text-green-700" : "text-text-primary"}`}>{card.title}</span>
             </button>
           ))}
         </div>
