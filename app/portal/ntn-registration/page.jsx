@@ -27,6 +27,16 @@ export default function NTNRegistration() {
   const [cameraActive, setCameraActive] = useState(false);
   const [resumed, setResumed] = useState(false);
 
+  // Coupon & Fee States
+  const BASE_FEE = 1500;
+  const [couponCode, setCouponCode] = useState("");
+  const [couponApplied, setCouponApplied] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [finalFee, setFinalFee] = useState(BASE_FEE);
+  const [couponMsg, setCouponMsg] = useState({ text: "", error: false });
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [loadingMethods, setLoadingMethods] = useState(true);
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -37,10 +47,14 @@ export default function NTNRegistration() {
 
   // Fetch active payment methods
   useEffect(() => {
+    setLoadingMethods(true);
     fetch("/api/admin/payment-methods")
       .then(r => r.json())
-      .then(d => { if (d.success) setPaymentMethods(d.methods.filter(m => m.is_active)); })
-      .catch(() => {});
+      .then(d => {
+        if (d.success) setPaymentMethods((d.methods || []).filter(m => m.is_active));
+        setLoadingMethods(false);
+      })
+      .catch(() => setLoadingMethods(false));
 
     // Restore draft from localStorage
     try {
@@ -207,6 +221,9 @@ export default function NTNRegistration() {
           selfie_url: selfie,
           payment_method: paymentMethod,
           payment_proof_url: paymentProof,
+          coupon_code: couponApplied ? couponCode : '',
+          discount_amount: couponApplied ? discountAmount : 0,
+          amount: couponApplied ? finalFee : BASE_FEE
         }),
       });
       const data = await res.json();
@@ -221,6 +238,41 @@ export default function NTNRegistration() {
       alert("Network error. Please try again.");
     }
     setSubmitting(false);
+  };
+
+  // Apply coupon
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setValidatingCoupon(true);
+    setCouponMsg({ text: "", error: false });
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponCode, amount: BASE_FEE })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCouponApplied(true);
+        setDiscountAmount(data.discountAmount);
+        setFinalFee(data.finalAmount);
+        setCouponMsg({ text: `Coupon "${data.code}" applied! You saved PKR ${data.discountAmount}`, error: false });
+      } else {
+        setCouponMsg({ text: data.error || "Invalid coupon code", error: true });
+      }
+    } catch (err) {
+      setCouponMsg({ text: "Error validating coupon", error: true });
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponApplied(false);
+    setCouponCode("");
+    setDiscountAmount(0);
+    setFinalFee(BASE_FEE);
+    setCouponMsg({ text: "", error: false });
   };
 
   return (
@@ -397,41 +449,98 @@ export default function NTNRegistration() {
         {step === 3 && (
           <div>
             <h2 className="text-lg font-bold text-text-primary mb-1">Payment Method</h2>
-            <p className="text-sm text-text-secondary mb-6">Send <strong className="text-primary">Rs 1,500</strong> to any of the following accounts, then select the method below.</p>
+            <p className="text-sm text-text-secondary mb-6">Send <strong className="text-primary">Rs {finalFee.toLocaleString()}</strong>{couponApplied && <span className="text-green-600"> (after PKR {discountAmount} discount)</span>} to any of the following accounts, then select the method below.</p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {paymentMethods.map(pm => (
-                <div
-                  key={pm.id}
-                  onClick={() => setPaymentMethod(pm.name)}
-                  className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                    paymentMethod === pm.name
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-gray-100 hover:border-primary/30"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    {pm.logo_url ? (
-                      <img src={pm.logo_url} alt={pm.name} className="w-12 h-8 object-contain" />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${
-                        pm.name === "Easypaisa" ? "bg-green-500" : pm.name === "JazzCash" ? "bg-red-500" : "bg-blue-500"
-                      }`}>
-                        {pm.name.charAt(0)}
+            {/* Coupon Code Section */}
+            <div className="bg-slate-50 border border-gray-200 rounded-2xl p-4 mb-5">
+              <h4 className="font-bold text-sm text-text-primary mb-2">Have a Coupon Code?</h4>
+              {couponApplied ? (
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-xs font-bold text-green-800">Coupon "{couponCode}" Applied</p>
+                    <p className="text-[11px] text-green-700 mt-0.5">You saved PKR {discountAmount}!</p>
+                  </div>
+                  <button onClick={removeCoupon} className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 px-3 py-1.5 rounded-lg">Remove</button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter Promo Code (e.g. SAVE100)"
+                      value={couponCode}
+                      onChange={e => setCouponCode(e.target.value.toUpperCase())}
+                      className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={validatingCoupon || !couponCode.trim()}
+                      className="bg-primary text-white font-bold px-5 py-2 rounded-xl text-xs hover:bg-primary/90 transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                    >
+                      {validatingCoupon ? (
+                        <>
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                          Checking...
+                        </>
+                      ) : "Apply"}
+                    </button>
+                  </div>
+                  {couponMsg.text && (
+                    <p className={`text-xs font-bold mt-2 ${couponMsg.error ? 'text-red-500' : 'text-green-600'}`}>
+                      {couponMsg.text}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+
+            <h3 className="text-sm font-bold text-text-primary mb-3">Select Payment Account</h3>
+            {loadingMethods ? (
+              <div className="flex items-center justify-center gap-2 py-10 bg-gray-50 rounded-2xl border border-gray-100">
+                <svg className="w-5 h-5 text-primary animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span className="text-sm text-text-secondary font-semibold">Loading payment methods...</span>
+              </div>
+            ) : paymentMethods.length === 0 ? (
+              <div className="text-center py-10 bg-amber-50 border border-amber-200 rounded-2xl">
+                <p className="text-sm text-amber-800 font-semibold">No payment methods are currently available.</p>
+                <p className="text-xs text-amber-700 mt-1">Please contact support.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {paymentMethods.map(pm => (
+                  <div
+                    key={pm.id}
+                    onClick={() => setPaymentMethod(pm.name)}
+                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                      paymentMethod === pm.name
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-gray-100 hover:border-primary/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      {pm.logo_url ? (
+                        <img src={pm.logo_url} alt={pm.name} className="w-12 h-8 object-contain" />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${
+                          pm.name === "Easypaisa" ? "bg-green-500" : pm.name === "JazzCash" ? "bg-red-500" : "bg-blue-500"
+                        }`}>
+                          {pm.name.charAt(0)}
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-bold text-sm text-text-primary">{pm.name}</p>
+                        <p className="text-xs text-text-secondary">{pm.account_title}</p>
                       </div>
-                    )}
-                    <div>
-                      <p className="font-bold text-sm text-text-primary">{pm.name}</p>
-                      <p className="text-xs text-text-secondary">{pm.account_title}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-text-secondary">Account Number</p>
+                      <p className="text-sm font-bold text-text-primary tracking-wider">{pm.account_number}</p>
                     </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-text-secondary">Account Number</p>
-                    <p className="text-sm font-bold text-text-primary tracking-wider">{pm.account_number}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {paymentMethod && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
@@ -439,7 +548,7 @@ export default function NTNRegistration() {
                   <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <p className="font-bold text-green-800 text-sm">{paymentMethod} Selected</p>
                 </div>
-                <p className="text-xs text-green-700">Please send Rs 1,500 to the account shown above, then upload your payment screenshot below.</p>
+                <p className="text-xs text-green-700">Please send Rs {finalFee.toLocaleString()} to the account shown above, then upload your payment screenshot below.</p>
               </div>
             )}
 

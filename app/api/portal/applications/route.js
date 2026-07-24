@@ -49,7 +49,7 @@ export async function POST(req) {
     }
 
     const body = await req.json();
-    const { category, cnic_front_url, cnic_back_url, selfie_url, payment_method, payment_proof_url } = body;
+    const { category, cnic_front_url, cnic_back_url, selfie_url, payment_method, payment_proof_url, coupon_code = '', discount_amount = 0, amount = 1500 } = body;
 
     if (!category || !cnic_front_url || !cnic_back_url || !selfie_url || !payment_method || !payment_proof_url) {
       return new Response(
@@ -58,11 +58,25 @@ export async function POST(req) {
       );
     }
 
+    const finalAmount = parseFloat(amount) || 1500;
+    const finalDiscount = parseFloat(discount_amount) || 0;
+
+    // Try to ensure coupon columns exist on the table (no-op if already present)
+    try { await db.exec("ALTER TABLE ntn_applications ADD COLUMN coupon_code VARCHAR(50) AFTER amount"); } catch (e) {}
+    try { await db.exec("ALTER TABLE ntn_applications ADD COLUMN discount_amount DECIMAL(10,2) DEFAULT 0 AFTER coupon_code"); } catch (e) {}
+
     const result = await db.run(
-      `INSERT INTO ntn_applications (user_id, service_type, category, cnic_front_url, cnic_back_url, selfie_url, payment_method, payment_proof_url, payment_status, amount, status)
-       VALUES (?, 'ntn-registration', ?, ?, ?, ?, ?, ?, 'pending', 1500, 'pending')`,
-      [user.id, category, cnic_front_url, cnic_back_url, selfie_url, payment_method, payment_proof_url]
+      `INSERT INTO ntn_applications (user_id, service_type, category, cnic_front_url, cnic_back_url, selfie_url, payment_method, payment_proof_url, payment_status, amount, coupon_code, discount_amount, status)
+       VALUES (?, 'ntn-registration', ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, 'pending')`,
+      [user.id, category, cnic_front_url, cnic_back_url, selfie_url, payment_method, payment_proof_url, finalAmount, coupon_code || null, finalDiscount]
     );
+
+    // Increment coupon used_count if a valid coupon code was applied
+    if (coupon_code) {
+      try {
+        await db.run("UPDATE coupons SET used_count = used_count + 1 WHERE code = ?", [coupon_code.toUpperCase()]);
+      } catch (e) {}
+    }
 
     // Notify admins about new application
     const admins = await db.all("SELECT id FROM users WHERE role = 'admin'");
@@ -81,6 +95,10 @@ export async function POST(req) {
     try {
       const appId = result.insertId;
       const catLabel = category.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      const discountHtml = finalDiscount > 0
+        ? `<tr><td style="padding:10px;background:#f7fafc;border:1px solid #e2e8f0;font-size:13px;color:#718096;">Discount</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#22c55e;font-weight:bold;">- Rs ${finalDiscount.toLocaleString()} (Coupon: ${coupon_code.toUpperCase()})</td></tr>`
+        : '';
+      const discountText = finalDiscount > 0 ? ` Discount: -Rs ${finalDiscount} (Coupon: ${coupon_code.toUpperCase()}).` : '';
       await sendEmail({
         to: userRecord?.email || user.email,
         subject: `NTN Registration Application Submitted - #${appId}`,
@@ -98,7 +116,8 @@ export async function POST(req) {
                   <tr><td style="padding:10px;background:#f7fafc;border:1px solid #e2e8f0;font-size:13px;color:#718096;width:40%;">Application ID</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;font-weight:bold;">#${appId}</td></tr>
                   <tr><td style="padding:10px;background:#f7fafc;border:1px solid #e2e8f0;font-size:13px;color:#718096;">Category</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;">${catLabel}</td></tr>
                   <tr><td style="padding:10px;background:#f7fafc;border:1px solid #e2e8f0;font-size:13px;color:#718096;">Payment Method</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;">${payment_method}</td></tr>
-                  <tr><td style="padding:10px;background:#f7fafc;border:1px solid #e2e8f0;font-size:13px;color:#718096;">Amount</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;">Rs 1,500</td></tr>
+                  <tr><td style="padding:10px;background:#f7fafc;border:1px solid #e2e8f0;font-size:13px;color:#718096;">Amount</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;">Rs ${finalAmount.toLocaleString()}</td></tr>
+                  ${discountHtml}
                   <tr><td style="padding:10px;background:#f7fafc;border:1px solid #e2e8f0;font-size:13px;color:#718096;">Submitted On</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;">${new Date().toLocaleString()}</td></tr>
                   <tr><td style="padding:10px;background:#f7fafc;border:1px solid #e2e8f0;font-size:13px;color:#718096;">Status</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#d69e2e;font-weight:bold;">Pending Review</td></tr>
                 </table>
@@ -110,7 +129,7 @@ export async function POST(req) {
             </div>
           </div>
         `,
-        text: `NTN Registration Application #${appId} submitted. Category: ${catLabel}, Payment: ${payment_method}, Amount: Rs 1,500. Status: Pending Review.`
+        text: `NTN Registration Application #${appId} submitted. Category: ${catLabel}, Payment: ${payment_method}, Amount: Rs ${finalAmount.toLocaleString()}.${discountText} Status: Pending Review.`
       });
     } catch(emailErr) {}
 
