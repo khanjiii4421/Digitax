@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [activeTab, setActiveTab] = useState("signin"); // signin | signup
   const [showPassword, setShowPassword] = useState(false);
 
-  const [signinForm, setSigninForm] = useState({ email: "", password: "" });
+  const [signinForm, setSigninForm] = useState({ email: "", password: "", remember: false });
   const [signupForm, setSignupForm] = useState({ name: "", number: "", email: "", cnic: "", password: "" });
   const [signinLoading, setSigninLoading] = useState(false);
   const [signupLoading, setSignupLoading] = useState(false);
@@ -34,6 +34,9 @@ export default function LoginPage() {
       script.onload = () => {
         googleScriptLoaded.current = true;
         initGoogleSignIn();
+      };
+      script.onerror = () => {
+        console.warn("Google Identity Services script failed to load.");
       };
       document.head.appendChild(script);
     }
@@ -426,6 +429,10 @@ export default function LoginPage() {
                       </div>
                       <input type="password" placeholder="••••••••" required className="bg-white border border-gray-200 rounded-xl px-4 py-3.5 w-full focus:outline-primary transition-all shadow-sm text-sm" value={signinForm.password} onChange={(e) => setSigninForm({ ...signinForm, password: e.target.value })} />
                     </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={signinForm.remember} onChange={(e) => setSigninForm({ ...signinForm, remember: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                      <span className="text-sm text-text-secondary">Remember me for 30 days</span>
+                    </label>
                     <button type="submit" disabled={signinLoading} className="bg-primary text-white font-bold text-base py-3.5 rounded-xl mt-2 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-primary/30 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
                       {signinLoading ? (
                         <><svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Signing In...</>

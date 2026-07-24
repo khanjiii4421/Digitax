@@ -12,47 +12,40 @@ export async function POST(req) {
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
 
     // If google-auth-library is available and client ID is set, verify the token
-    if (googleClientId) {
-      try {
-        const { OAuth2Client } = await import('google-auth-library');
-        const client = new OAuth2Client(googleClientId);
-        const body = await req.json();
-        const credential = body.credential;
+    if (!googleClientId) {
+    return new Response(
+      JSON.stringify({ success: false, message: 'Google authentication is not configured.' }),
+      { status: 501, headers: { 'Content-Type': 'application/json', ...securityHeaders } }
+    );
+  }
 
-        if (!credential) {
-          return new Response(
-            JSON.stringify({ success: false, message: 'Google credential is required.', data: null }),
-            { status: 400, headers: { 'Content-Type': 'application/json', ...securityHeaders } }
-          );
-        }
+  try {
+    const { OAuth2Client } = await import('google-auth-library');
+    const client = new OAuth2Client(googleClientId);
+    const body = await req.json();
+    const credential = body.credential;
 
-        const ticket = await client.verifyIdToken({
-          idToken: credential,
-          audience: googleClientId,
-        });
-        const payload = ticket.getPayload();
-        email = payload.email;
-        name = payload.name || payload.given_name || 'Google User';
-        oauthId = payload.sub;
-      } catch (verifyErr) {
-        return new Response(
-          JSON.stringify({ success: false, message: 'Invalid Google credential.', data: null }),
-          { status: 401, headers: { 'Content-Type': 'application/json', ...securityHeaders } }
-        );
-      }
-    } else {
-      // Fallback for development without Google credentials
-      try {
-        const body = await req.json();
-        email = body.email || 'google_user@gmail.com';
-        name = body.name || 'Google User';
-        oauthId = body.sub || body.oauth_id || crypto.randomBytes(16).toString('hex');
-      } catch (e) {
-        email = 'google_user@gmail.com';
-        name = 'Google User';
-        oauthId = crypto.randomBytes(16).toString('hex');
-      }
+    if (!credential) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'Google credential is required.', data: null }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...securityHeaders } }
+      );
     }
+
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: googleClientId,
+    });
+    const payload = ticket.getPayload();
+    email = payload.email;
+    name = payload.name || payload.given_name || 'Google User';
+    oauthId = payload.sub;
+  } catch (verifyErr) {
+    return new Response(
+      JSON.stringify({ success: false, message: 'Invalid Google credential.', data: null }),
+      { status: 401, headers: { 'Content-Type': 'application/json', ...securityHeaders } }
+    );
+  }
 
     // Find or create user
     let user = await db.get('SELECT id, name, email, role, oauth_provider FROM users WHERE email = ?', [email]);

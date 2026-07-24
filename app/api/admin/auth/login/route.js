@@ -17,7 +17,7 @@ export async function POST(req) {
     }
 
     const body = await req.json();
-    const { email, password } = sanitizeObject(body);
+    const { email, password, remember } = sanitizeObject(body);
 
     if (!email || !password) {
       return new Response(
@@ -52,13 +52,26 @@ export async function POST(req) {
 
     resetFailedAttempts(email);
     const token = signToken({ id: user.id, name: user.name, email: user.email, role: user.role });
+    const refreshToken = signToken({ id: user.id, tokenType: 'refresh' });
     const cookieStore = await cookies();
+
+    const isRemember = remember === true || remember === 'true';
+    const tokenMaxAge = isRemember ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+
     cookieStore.set("admin_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: tokenMaxAge,
+    });
+
+    cookieStore.set("admin_refresh_token", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/api/admin/auth/refresh",
+      maxAge: 30 * 24 * 60 * 60,
     });
 
     return new Response(

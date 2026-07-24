@@ -18,10 +18,25 @@ export default function PortalLayout({ children }) {
       .then(resData => {
         if (resData.success && resData.data?.user) {
           setUser(resData.data.user);
+          setLoading(false);
         } else {
-          window.location.href = '/login';
+          return fetch("/api/auth/refresh", { method: "POST" })
+            .then(r => r.json())
+            .then(refreshData => {
+              if (refreshData.success) {
+                return fetch("/api/auth/me").then(r => r.json());
+              }
+              return null;
+            })
+            .then(retryData => {
+              if (retryData?.success && retryData.data?.user) {
+                setUser(retryData.data.user);
+              } else {
+                window.location.href = '/login';
+              }
+              setLoading(false);
+            });
         }
-        setLoading(false);
       })
       .catch(() => {
         window.location.href = '/login';

@@ -9,9 +9,13 @@ export async function POST(req) {
   try {
     const settings = await req.json();
     
-    // MySQL atomic upsert for each setting
     for (const [key, value] of Object.entries(settings)) {
-      await db.run('INSERT INTO settings (`key`, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value=VALUES(value)', [key, value]);
+      const existing = await db.get('SELECT key FROM settings WHERE key = ?', [key]);
+      if (existing) {
+        await db.run('UPDATE settings SET value = ? WHERE key = ?', [value, key]);
+      } else {
+        await db.run('INSERT INTO settings (key, value) VALUES (?, ?)', [key, value]);
+      }
     }
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (error) {

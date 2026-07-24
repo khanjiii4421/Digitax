@@ -87,13 +87,21 @@ export async function POST(req) {
     };
 
     const token = signToken(user);
+    const refreshToken = signToken({ id: user.id, tokenType: 'refresh' });
     const cookieStore = await cookies();
     cookieStore.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7
+      maxAge: 7 * 24 * 60 * 60
+    });
+    cookieStore.set('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/api/auth/refresh',
+      maxAge: 30 * 24 * 60 * 60,
     });
 
     await sendTemplateEmail('welcome_email', { name }, email);

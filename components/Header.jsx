@@ -52,6 +52,9 @@ export default function Header({ settings = [], logoUrl = null, initialUser = nu
         googleScriptLoaded.current = true;
         initGoogleSignIn();
       };
+      script.onerror = () => {
+        console.warn('Google Identity Services script failed to load.');
+      };
       document.head.appendChild(script);
     }
   }, []);

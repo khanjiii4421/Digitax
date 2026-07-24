@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 
-const JWT_SECRET = process.env.JWT_SECRET || "digitax-super-secret-key-1234567890";
+function getJwtSecret() {
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET !== "digitax-super-secret-key-1234567890" && !process.env.JWT_SECRET.includes("change-this")) {
+    return process.env.JWT_SECRET;
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("FATAL: JWT_SECRET must be set to a strong random value in production");
+  }
+  return "0686e56abdb4cf89c38684b8bc83d21acd561d118b9e4a47e90b6b84cddd033eb77810d70dea386b3c6c6604c484cf04280b5452d65f42abe9f990fec6912050";
+}
+const JWT_SECRET = getJwtSecret();
 
 function base64urlDecode(str) {
   let base64 = str.replace(/-/g, "+").replace(/_/g, "/");
