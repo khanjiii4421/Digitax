@@ -1,6 +1,11 @@
 import db from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { securityHeaders } from "@/lib/security";
 
-export async function GET() {
+export async function GET(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const usersRow = await db.get("SELECT COUNT(*) as count FROM users WHERE role = 'user'");
     const usersCount = usersRow?.count || 0;

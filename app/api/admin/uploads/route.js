@@ -1,5 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { requireAdmin } from "@/lib/auth";
+import { securityHeaders } from "@/lib/security";
 
 async function getFilesRecursively(dir, relativePath = "") {
   let results = [];
@@ -26,7 +28,10 @@ async function getFilesRecursively(dir, relativePath = "") {
   return results;
 }
 
-export async function GET() {
+export async function GET(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
     await fs.mkdir(uploadsDir, { recursive: true });
@@ -35,36 +40,49 @@ export async function GET() {
     files.sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
     return new Response(JSON.stringify(files), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...securityHeaders },
     });
   } catch (error) {
     return new Response(
       JSON.stringify({ error: "Failed to list uploads." }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json", ...securityHeaders } }
     );
   }
 }
 
 export async function DELETE(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const { filePath } = await req.json();
-    if (!filePath || !filePath.startsWith("/uploads/")) {
+    if (!filePath || typeof filePath !== 'string' || !filePath.startsWith("/uploads/")) {
       return new Response(
         JSON.stringify({ error: "Invalid file path." }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        { status: 400, headers: { "Content-Type": "application/json", ...securityHeaders } }
       );
     }
     const cleanPath = filePath.replace(/^\/uploads\//, "");
-    const fullPath = path.join(process.cwd(), "public", "uploads", cleanPath);
+    const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
+    const fullPath = path.resolve(uploadsDir, cleanPath);
+
+    // Path traversal check
+    if (!fullPath.startsWith(uploadsDir)) {
+      return new Response(
+        JSON.stringify({ error: "Access denied: Invalid file path." }),
+        { status: 403, headers: { "Content-Type": "application/json", ...securityHeaders } }
+      );
+    }
+
     await fs.unlink(fullPath);
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...securityHeaders },
     });
   } catch (error) {
     return new Response(
       JSON.stringify({ error: "Failed to delete file." }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json", ...securityHeaders } }
     );
   }
 }

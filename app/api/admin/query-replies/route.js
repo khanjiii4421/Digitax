@@ -1,7 +1,11 @@
 import db from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { securityHeaders } from "@/lib/security";
 
 export async function GET(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const queryId = searchParams.get('query_id');

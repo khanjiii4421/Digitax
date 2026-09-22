@@ -34,6 +34,17 @@ Options -Indexes
     RewriteCond %{HTTPS} off
     RewriteCond %{HTTP:X-Forwarded-Proto} !https
     RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    # Serve Next.js static assets directly via Apache (faster)
+    RewriteCond %{REQUEST_URI} ^/_next/static/ [NC]
+    RewriteRule ^ - [L]
+
+    # Serve public/ files directly via Apache
+    RewriteCond %{DOCUMENT_ROOT}/%{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # Block script execution in /uploads/ directory (defense-in-depth)
+    RewriteRule ^uploads/.*\.(php|phtml|php3|php4|php5|php7|phps|cgi|pl|sh|py|jsp|asp|aspx|shtml|fcgi|exe)$ - [F,L,NC]
+
 </IfModule>
 
 # ------------------------------------------------------------

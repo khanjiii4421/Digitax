@@ -8,6 +8,7 @@ const ALLOWED_TYPES = [
   'application/pdf', 'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
+const ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf', '.doc', '.docx']);
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 function getUser(req) {
@@ -44,6 +45,14 @@ export async function POST(req) {
       );
     }
 
+    const rawExt = path.extname(file.name || '').toLowerCase();
+    if (!rawExt || !ALLOWED_EXTS.has(rawExt)) {
+      return new Response(
+        JSON.stringify({ error: `File extension ${rawExt || 'unknown'} is not permitted` }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...securityHeaders } }
+      );
+    }
+
     if (file.size > MAX_FILE_SIZE) {
       return new Response(
         JSON.stringify({ error: 'File too large. Maximum size is 10MB' }),
@@ -51,15 +60,16 @@ export async function POST(req) {
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const cleanName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_').toLowerCase();
-    const timestamp = Date.now();
-    const finalName = `${timestamp}_${cleanName}`;
+    const crypto = await import('crypto');
+    const randomHex = crypto.randomBytes(8).toString('hex');
+    const cleanBase = path.basename(file.name, rawExt).replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30).toLowerCase();
+    const finalName = `${Date.now()}_${randomHex}_${cleanBase}${rawExt}`;
 
-    const sanitizedFolder = folder.replace(/[^a-zA-Z0-9_-]/g, '');
+    const sanitizedFolder = folder.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', sanitizedFolder);
     await fs.mkdir(uploadDir, { recursive: true });
 
+    const buffer = Buffer.from(await file.arrayBuffer());
     const filePath = path.join(uploadDir, finalName);
     await fs.writeFile(filePath, buffer);
 

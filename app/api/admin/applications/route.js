@@ -1,7 +1,12 @@
 import db from "@/lib/db";
 import { sendEmail, buildStatusNotificationEmail } from "@/lib/email";
+import { requireAdmin } from "@/lib/auth";
+import { securityHeaders } from "@/lib/security";
 
-export async function GET() {
+export async function GET(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const applications = await db.all(
       `SELECT a.*, u.name as user_name, u.email as user_email, u.number as user_phone, u.cnic as user_cnic
@@ -11,14 +16,22 @@ export async function GET() {
        ORDER BY a.created_at DESC`
     );
 
-    return new Response(JSON.stringify({ success: true, applications }), { status: 200 });
+    return new Response(JSON.stringify({ success: true, applications }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...securityHeaders }
+    });
   } catch (error) {
     console.error("Admin applications GET error:", error);
-    return new Response(JSON.stringify({ success: false, error: "Server error." }), { status: 500 });
+    return new Response(JSON.stringify({ success: false, error: "Server error." }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...securityHeaders }
+    });
   }
 }
 
 export async function PATCH(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
   try {
     const body = await req.json();
     const { id, payment_status, status, admin_notes, admin_file_url } = body;
@@ -46,7 +59,7 @@ export async function PATCH(req) {
     if (admin_notes !== undefined) { fields.push("admin_notes = ?"); values.push(admin_notes); }
     if (admin_file_url !== undefined) { fields.push("admin_file_url = ?"); values.push(admin_file_url); }
 
-    fields.push("updated_at = datetime('now')");
+    fields.push("updated_at = CURRENT_TIMESTAMP");
     values.push(id);
 
     await db.run(`UPDATE ntn_applications SET ${fields.join(", ")} WHERE id = ?`, values);
@@ -161,6 +174,9 @@ export async function PATCH(req) {
 }
 
 export async function DELETE(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

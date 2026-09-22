@@ -25,10 +25,20 @@ export async function POST(req) {
 
     // Validation
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const allowedExts = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.webp']);
+
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json({
         success: false,
-        error: 'Invalid file type. Only PDF, JPG, and PNG files are allowed.'
+        error: 'Invalid file type. Only PDF, JPG, PNG, and WebP files are allowed.'
+      }, { status: 400 });
+    }
+
+    const rawExt = path.extname(file.name || '').toLowerCase();
+    if (!rawExt || !allowedExts.has(rawExt)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid file extension. Only .pdf, .jpg, .jpeg, .png, and .webp are allowed.'
       }, { status: 400 });
     }
 
@@ -48,8 +58,10 @@ export async function POST(req) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const fileExt = path.extname(file.name) || (file.type.includes('pdf') ? '.pdf' : '.jpg');
-    const safeName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}${fileExt}`;
+    const crypto = await import('crypto');
+    const randomHex = crypto.randomBytes(8).toString('hex');
+    const cleanBase = path.basename(file.name, rawExt).replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30).toLowerCase();
+    const safeName = `${Date.now()}_${randomHex}_${cleanBase}${rawExt}`;
     const filePath = path.join(uploadDir, safeName);
 
     await fs.writeFile(filePath, buffer);

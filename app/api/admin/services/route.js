@@ -1,20 +1,28 @@
 import db from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
+import { securityHeaders } from '@/lib/security';
 
 function toSlug(text) {
   if (!text) return '';
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-export async function GET() {
+export async function GET(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const items = await db.all('SELECT * FROM services ORDER BY display_order ASC, id ASC');
-    return new Response(JSON.stringify(items), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify(items), { status: 200, headers: { 'Content-Type': 'application/json', ...securityHeaders } });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Failed to fetch services' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'Failed to fetch services' }), { status: 500, headers: { 'Content-Type': 'application/json', ...securityHeaders } });
   }
 }
 
 export async function POST(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const body = await req.json();
     const { 
@@ -48,6 +56,9 @@ export async function POST(req) {
 }
 
 export async function PUT(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const body = await req.json();
     const { 
@@ -77,20 +88,23 @@ export async function PUT(req) {
       WHERE id = ?
     `, [category_id, title, price, working_days, description, requirements, icon_url, status, finalSlug, finalOrder, cta_text, portal_url, id]);
 
-    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json', ...securityHeaders } });
   } catch (error) {
     console.error("Error updating service:", error);
-    return new Response(JSON.stringify({ error: 'Failed to update service' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'Failed to update service' }), { status: 500, headers: { 'Content-Type': 'application/json', ...securityHeaders } });
   }
 }
 
 export async function DELETE(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     await db.run('DELETE FROM services WHERE id = ?', [id]);
-    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json', ...securityHeaders } });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Failed to delete service' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'Failed to delete service' }), { status: 500, headers: { 'Content-Type': 'application/json', ...securityHeaders } });
   }
 }
