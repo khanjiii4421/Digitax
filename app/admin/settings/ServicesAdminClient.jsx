@@ -21,6 +21,10 @@ export default function ServicesAdminClient({ initialCategories, initialServices
     requirements: "",
     icon_url: "",
     status: "active",
+    slug: "",
+    display_order: 0,
+    cta_text: "Apply Now",
+    portal_url: "",
   });
   const [serviceImgPreview, setServiceImgPreview] = useState(null);
   const [serviceUploading, setServiceUploading] = useState(false);
@@ -143,6 +147,10 @@ export default function ServicesAdminClient({ initialCategories, initialServices
         requirements: service.requirements || "",
         icon_url: service.icon_url || "",
         status: service.status || "active",
+        slug: service.slug || "",
+        display_order: service.display_order ?? 0,
+        cta_text: service.cta_text || "Apply Now",
+        portal_url: service.portal_url || "",
       });
       setServiceImgPreview(service.icon_url || null);
     } else {
@@ -156,10 +164,46 @@ export default function ServicesAdminClient({ initialCategories, initialServices
         requirements: "",
         icon_url: "",
         status: "active",
+        slug: "",
+        display_order: services.length + 1,
+        cta_text: "Apply Now",
+        portal_url: "",
       });
       setServiceImgPreview(null);
     }
     setShowServiceModal(true);
+  };
+
+  const handleToggleStatus = async (service) => {
+    const newStatus = service.status === "active" ? "inactive" : "active";
+    try {
+      const res = await fetch("/api/admin/services", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...service, status: newStatus }),
+      });
+      if (res.ok) {
+        showToast(`Service set to ${newStatus}.`, "success");
+        fetchServices();
+      } else {
+        showToast("Failed to update status.", "error");
+      }
+    } catch {
+      showToast("Network error updating status.", "error");
+    }
+  };
+
+  const handleMoveOrder = async (service, direction) => {
+    const currentOrder = Number(service.display_order) || 0;
+    const newOrder = direction === "up" ? Math.max(0, currentOrder - 1) : currentOrder + 1;
+    try {
+      const res = await fetch("/api/admin/services", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...service, display_order: newOrder }),
+      });
+      if (res.ok) fetchServices();
+    } catch {}
   };
 
   const handleServiceUpload = async (e) => {
@@ -356,14 +400,32 @@ export default function ServicesAdminClient({ initialCategories, initialServices
                                 >
                                   {service.status}
                                 </span>
+                                {service.slug && (
+                                  <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-[10px] font-mono font-bold">
+                                    /{service.slug}
+                                  </span>
+                                )}
+                                <span className="bg-gray-100 text-text-secondary px-2 py-0.5 rounded-md text-[10px] font-bold">
+                                  Order: #{service.display_order ?? 0}
+                                </span>
                               </div>
-                              <div className="flex items-center gap-4 text-xs font-semibold text-text-secondary mt-1 flex-wrap">
+                              <div className="flex items-center gap-3 text-xs font-semibold text-text-secondary mt-1 flex-wrap">
                                 <span className="bg-gray-100 px-2 py-0.5 rounded-md text-text-primary">
                                   Price: {service.price}
                                 </span>
                                 <span className="bg-gray-100 px-2 py-0.5 rounded-md text-text-primary">
                                   Duration: {service.working_days}
                                 </span>
+                                {service.portal_url && (
+                                  <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">
+                                    Portal: {service.portal_url}
+                                  </span>
+                                )}
+                                {service.cta_text && (
+                                  <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md">
+                                    CTA: {service.cta_text}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-text-secondary text-sm mt-2 line-clamp-2 leading-relaxed">
                                 {service.description}
@@ -394,17 +456,43 @@ export default function ServicesAdminClient({ initialCategories, initialServices
                             </div>
                           </div>
 
-                          <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center gap-3 shrink-0 pt-4 md:pt-0 border-t border-gray-100 md:border-0">
-                            <div className="flex gap-2">
+                          <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center gap-2 shrink-0 pt-4 md:pt-0 border-t border-gray-100 md:border-0">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleMoveOrder(service, "up")}
+                                title="Move up in display order"
+                                className="w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-100 flex items-center justify-center text-xs font-bold text-text-secondary cursor-pointer"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                onClick={() => handleMoveOrder(service, "down")}
+                                title="Move down in display order"
+                                className="w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-100 flex items-center justify-center text-xs font-bold text-text-secondary cursor-pointer"
+                              >
+                                ▼
+                              </button>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <button
+                                onClick={() => handleToggleStatus(service)}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border ${
+                                  service.status === "active"
+                                    ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200"
+                                    : "text-green-700 bg-green-50 hover:bg-green-100 border-green-200"
+                                }`}
+                              >
+                                {service.status === "active" ? "Disable" : "Enable"}
+                              </button>
                               <button
                                 onClick={() => handleOpenServiceModal(service)}
-                                className="px-3.5 py-2 text-xs font-bold text-primary hover:bg-primary/5 border border-primary/20 rounded-xl transition-all cursor-pointer"
+                                className="px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/5 border border-primary/20 rounded-xl transition-all cursor-pointer"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => handleDeleteService(service.id, service.title)}
-                                className="px-3.5 py-2 text-xs font-bold text-error hover:bg-error/5 border border-error/20 rounded-xl transition-all cursor-pointer"
+                                className="px-3.5 py-1.5 text-xs font-bold text-error hover:bg-error/5 border border-error/20 rounded-xl transition-all cursor-pointer"
                               >
                                 Delete
                               </button>
@@ -502,8 +590,8 @@ export default function ServicesAdminClient({ initialCategories, initialServices
       {/* Category Add/Edit Modal */}
       {/* ---------------------------------------------------- */}
       {showCategoryModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 anim-fade-in">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 relative">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto anim-fade-in" onClick={() => setShowCategoryModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative my-8" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setShowCategoryModal(false)}
               className="absolute top-6 right-6 text-text-secondary hover:text-primary text-2xl leading-none cursor-pointer"
@@ -555,8 +643,8 @@ export default function ServicesAdminClient({ initialCategories, initialServices
       {/* Service Add/Edit Modal */}
       {/* ---------------------------------------------------- */}
       {showServiceModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-y-auto anim-fade-in">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl p-8 relative my-8">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-8 overflow-y-auto anim-fade-in" onClick={() => setShowServiceModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-6 sm:p-8 relative my-6" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setShowServiceModal(false)}
               className="absolute top-6 right-6 text-text-secondary hover:text-primary text-2xl leading-none cursor-pointer"
@@ -686,6 +774,51 @@ export default function ServicesAdminClient({ initialCategories, initialServices
                   }
                   className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary w-full bg-gray-50 focus:bg-white text-sm font-sans resize-none"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-text-primary ml-1">URL Slug</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. personal-tax-filing (auto-generated if empty)"
+                    value={serviceForm.slug}
+                    onChange={(e) => setServiceForm({ ...serviceForm, slug: e.target.value })}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary w-full bg-gray-50 focus:bg-white text-sm"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-text-primary ml-1">Portal Application URL</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. /portal/personal-tax or /portal/ntn-registration"
+                    value={serviceForm.portal_url}
+                    onChange={(e) => setServiceForm({ ...serviceForm, portal_url: e.target.value })}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary w-full bg-gray-50 focus:bg-white text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-text-primary ml-1">Button CTA Text</label>
+                  <input
+                    type="text"
+                    placeholder="Apply Now"
+                    value={serviceForm.cta_text}
+                    onChange={(e) => setServiceForm({ ...serviceForm, cta_text: e.target.value })}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary w-full bg-gray-50 focus:bg-white text-sm"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-text-primary ml-1">Display Order</label>
+                  <input
+                    type="number"
+                    value={serviceForm.display_order}
+                    onChange={(e) => setServiceForm({ ...serviceForm, display_order: parseInt(e.target.value, 10) || 0 })}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary w-full bg-gray-50 focus:bg-white text-sm"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-6 mt-1 ml-1">

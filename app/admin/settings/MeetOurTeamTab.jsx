@@ -9,6 +9,10 @@ export default function MeetOurTeamTab() {
   // Section Title State
   const [sectionTitle, setSectionTitle] = useState("Meet Our Dream Team");
   const [savingTitle, setSavingTitle] = useState(false);
+  const [headingType, setHeadingType] = useState("text"); // "text" | "image"
+  const [titleImage, setTitleImage] = useState("");
+  const [titleImagePreview, setTitleImagePreview] = useState(null);
+  const [uploadingTitleImage, setUploadingTitleImage] = useState(false);
 
   // Team Banner Image State
   const [teamImage, setTeamImage] = useState("");
@@ -40,6 +44,13 @@ export default function MeetOurTeamTab() {
         const data = await res.json();
         const titleSetting = data.find(s => s.key === "team_title");
         if (titleSetting) setSectionTitle(titleSetting.value);
+        const headingTypeSetting = data.find(s => s.key === "team_heading_type");
+        if (headingTypeSetting) setHeadingType(headingTypeSetting.value);
+        const titleImgSetting = data.find(s => s.key === "team_title_image");
+        if (titleImgSetting?.value) {
+          setTitleImage(titleImgSetting.value);
+          setTitleImagePreview(titleImgSetting.value);
+        }
         const imageSetting = data.find(s => s.key === "team_section_image");
         if (imageSetting?.value) {
           setTeamImage(imageSetting.value);
@@ -75,17 +86,76 @@ export default function MeetOurTeamTab() {
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ team_title: sectionTitle, team_section_image: teamImage })
+        body: JSON.stringify({
+          team_title: sectionTitle,
+          team_heading_type: headingType,
+          team_title_image: titleImage,
+          team_section_image: teamImage
+        })
       });
       if (res.ok) {
-        showToast("Section title updated successfully!", "success");
+        showToast("Section heading updated successfully!", "success");
       } else {
-        showToast("Failed to save title.", "error");
+        showToast("Failed to save heading settings.", "error");
       }
     } catch {
       showToast("Network error.", "error");
     } finally {
       setSavingTitle(false);
+    }
+  };
+
+  const handleTitleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setTitleImagePreview(URL.createObjectURL(file));
+    setUploadingTitleImage(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "team");
+
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success) {
+        setTitleImage(data.url);
+        setHeadingType("image");
+        showToast("Heading banner image uploaded!", "success");
+        await fetch("/api/admin/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            team_title_image: data.url,
+            team_heading_type: "image"
+          })
+        });
+      } else {
+        showToast(data.error || "Upload failed.", "error");
+      }
+    } catch {
+      showToast("Upload error.", "error");
+    } finally {
+      setUploadingTitleImage(false);
+    }
+  };
+
+  const handleDeleteTitleImage = async () => {
+    setTitleImage("");
+    setTitleImagePreview(null);
+    setHeadingType("text");
+    try {
+      await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          team_title_image: "",
+          team_heading_type: "text"
+        })
+      });
+      showToast("Heading banner image removed.", "success");
+    } catch {
+      showToast("Failed to remove image.", "error");
     }
   };
 
@@ -283,25 +353,91 @@ export default function MeetOurTeamTab() {
         <p className="text-text-secondary text-sm mt-1">Manage team profiles and layout configuration.</p>
       </div>
 
-      {/* Title Config Card */}
-      <form onSubmit={handleSaveTitle} className="bg-white rounded-[20px] p-6 border border-gray-200/60 shadow-sm flex flex-col gap-4">
-        <h3 className="font-bold text-sm text-text-primary">Customize Section Heading</h3>
-        <div className="flex gap-4">
-          <input 
-            type="text" 
-            value={sectionTitle} 
-            onChange={e => setSectionTitle(e.target.value)} 
-            className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors flex-1 text-sm" 
-            placeholder="e.g. Meet Our Dream Team"
-          />
-          <button 
-            type="submit" 
-            disabled={savingTitle} 
-            className="bg-primary text-white font-bold px-6 rounded-xl text-xs hover:scale-105 active:scale-95 disabled:opacity-50 transition-all cursor-pointer shadow-sm"
-          >
-            {savingTitle ? "Saving..." : "Update Title"}
-          </button>
+      {/* Title & Heading Config Card */}
+      <form onSubmit={handleSaveTitle} className="bg-white rounded-[20px] p-6 border border-gray-200/60 shadow-sm flex flex-col gap-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+          <div>
+            <h3 className="font-bold text-sm text-text-primary">Customize Section Heading</h3>
+            <p className="text-xs text-text-secondary mt-0.5">Choose whether to display standard text or a custom banner image in place of the write-up.</p>
+          </div>
+          {/* Mode Switch */}
+          <div className="inline-flex p-1 bg-gray-100 rounded-xl self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setHeadingType("text")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                headingType === "text" ? "bg-white text-primary shadow-xs" : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              Text Write-up
+            </button>
+            <button
+              type="button"
+              onClick={() => setHeadingType("image")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                headingType === "image" ? "bg-white text-primary shadow-xs" : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              Custom Picture
+            </button>
+          </div>
         </div>
+
+        {/* Text Input */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-bold text-gray-700">Heading Text (Used as Title / SEO / Fallback)</label>
+          <div className="flex gap-4">
+            <input 
+              type="text" 
+              value={sectionTitle} 
+              onChange={e => setSectionTitle(e.target.value)} 
+              className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors flex-1 text-sm" 
+              placeholder="e.g. Meet Our Dream Team"
+            />
+            <button 
+              type="submit" 
+              disabled={savingTitle} 
+              className="bg-primary text-white font-bold px-6 rounded-xl text-xs hover:scale-105 active:scale-95 disabled:opacity-50 transition-all cursor-pointer shadow-sm"
+            >
+              {savingTitle ? "Saving..." : "Update Title"}
+            </button>
+          </div>
+        </div>
+
+        {/* Heading Image Upload (Shown when Custom Picture mode is selected, or can be uploaded directly) */}
+        {headingType === "image" && (
+          <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-5">
+            <div className="w-48 h-24 bg-white rounded-xl border border-gray-200 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
+              {titleImagePreview ? (
+                <img src={titleImagePreview} alt="Heading Banner" className="w-full h-full object-contain p-2" />
+              ) : (
+                <span className="text-[11px] text-gray-400 font-medium">No picture uploaded yet</span>
+              )}
+            </div>
+            <div className="flex-1 text-center sm:text-left space-y-2">
+              <h4 className="text-xs font-bold text-gray-900">Heading Banner Picture</h4>
+              <p className="text-[11px] text-gray-500">This picture will replace the "Meet Our Dream Team" write-up on the website.</p>
+              <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                <label className="inline-flex items-center gap-1.5 bg-primary text-white font-bold px-3.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-primary/90 transition-colors shadow-xs">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  {uploadingTitleImage ? "Uploading..." : titleImagePreview ? "Change Picture" : "Upload Picture"}
+                  <input type="file" accept="image/*" onChange={handleTitleImageUpload} className="hidden" disabled={uploadingTitleImage} />
+                </label>
+                {titleImagePreview && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteTitleImage}
+                    className="text-red-600 hover:text-red-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition-colors cursor-pointer"
+                  >
+                    Remove Picture
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </form>
 
       {/* Team Banner Image Upload */}
@@ -408,9 +544,9 @@ export default function MeetOurTeamTab() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                          <div className="w-12 h-14 rounded-xl bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center p-1">
                             {member.photo_url ? (
-                              <img src={member.photo_url} alt="" className="w-full h-full object-cover" />
+                              <img src={member.photo_url} alt="" className="w-full h-full object-contain" />
                             ) : (
                               <span className="text-primary font-bold text-sm">{member.name.charAt(0)}</span>
                             )}
@@ -456,17 +592,17 @@ export default function MeetOurTeamTab() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl relative anim-slide-up">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto anim-fade-in" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl relative my-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-6">{editingMember ? "Edit Team Member" : "New Team Member"}</h3>
             <form onSubmit={handleSaveMember} className="flex flex-col gap-4">
               
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-text-primary">Photo</label>
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center">
+                  <div className="w-16 h-20 rounded-xl bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center p-1">
                     {imgPreview ? (
-                      <img src={imgPreview} alt="" className="w-full h-full object-cover" />
+                      <img src={imgPreview} alt="" className="w-full h-full object-contain" />
                     ) : (
                       <span className="text-text-secondary text-xs">No Photo</span>
                     )}

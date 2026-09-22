@@ -1,6 +1,10 @@
 import db from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const users = await db.all("SELECT id, name, number, email, cnic, role FROM users ORDER BY id DESC");
     return new Response(JSON.stringify(users), {
@@ -16,6 +20,9 @@ export async function GET() {
 }
 
 export async function PUT(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const { id, name, number, email, cnic, role } = await req.json();
     if (!id || !name || !email) {
@@ -43,6 +50,9 @@ export async function PUT(req) {
 }
 
 export async function DELETE(req) {
+  const auth = requireAdmin(req);
+  if (!auth.authorized) return auth.response;
+
   try {
     const { id } = await req.json();
     if (!id) {

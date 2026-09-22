@@ -1,118 +1,207 @@
-# DIGITAX App Deployment Guide for cPanel
-
-## Prerequisites
-- cPanel login credentials (already provided)
-- Deployment package: `digitax-deploy.zip` (already created)
-- Database setup script: `database_setup.sql`
+# DIGITAX Production Deployment & Architecture Runbook
+**Target Domain**: [https://digitax.pk](https://digitax.pk)  
+**Hosting Environment**: DirectAdmin / cPanel (CloudLinux / Apache + Passenger)  
+**Main Domain Isolation**: `sarkar.pk` is completely isolated and unaffected.
 
 ---
 
-## Step 1: Set Up the Database in cPanel
+## Architecture Summary
 
-### 1.1 Log in to cPanel
-1. Open your browser and go to: https://digitax.pk:2083/evo/login
-2. Log in with username: `tadbeer` and password: `Digitax@8554890`
-
-### 1.2 Create Database and User
-1. In cPanel, go to **"MySQL® Database Wizard"** under the **"Databases"** section
-2. Step 1: Create a Database
-   - Enter database name: `digitax_db` (cPanel will prefix it with your username, like `tadbeer_digitax_db`)
-   - Click **"Next Step"**
-3. Step 2: Create Database User
-   - Username: `digitax_user` (cPanel will prefix it like `tadbeer_digitax_user`)
-   - Password: Use a strong password (you can use the Password Generator)
-   - Click **"Create User"**
-4. Step 3: Add User to Database
-   - Select the user and database you just created
-   - Check **"ALL PRIVILEGES"**
-   - Click **"Next Step"**
-
-### 1.3 Import the Database
-1. Go back to cPanel home, click **"phpMyAdmin"** under **"Databases"**
-2. Select your new database from the left sidebar
-3. Click the **"Import"** tab at the top
-4. Click **"Choose File"** and select `database_setup.sql` from your project folder
-5. Click **"Go"** to import the database
+```
+User Request: https://digitax.pk
+       │
+       ▼
+   HTTPS / SSL (Let's Encrypt / AutoSSL)
+       │
+       ▼
+Apache Reverse Proxy (Port 80/443 with .htaccess hardening)
+       │
+       ▼
+CloudLinux / Phusion Passenger
+   (Unix Domain Socket / App Root: /domains/digitax.pk/public_html)
+       │
+       ▼
+Next.js Production Standalone Runtime (Node.js 20 LTS)
+       │
+       ▼
+MySQL / MariaDB Production Database (tadbeer_digitax_db)
+       │
+       ▼
+Persistent Data (users, applications, drafts, settings)
+```
 
 ---
 
-## Step 2: Set Up Node.js App in cPanel
+## 1. Domain & Hosting Isolation
 
-### 2.1 Create Node.js Application
-1. In cPanel, go to **"Setup Node.js App"** under the **"Software"** section
-2. Click **"Create Application"**
-3. Fill in the details:
-   - **Node.js version**: Select the latest LTS version (e.g., 20.x or 18.x)
-   - **Application mode**: Production
-   - **Application root**: Enter a folder name (e.g., `digitax-app`)
-   - **Application URL**: Select `digitax.pk` from the dropdown
-   - **Application startup file**: `server.js`
-4. Click **"Create"**
+- **Main Domain**: `sarkar.pk` — Document Root: `/home/tadbeer/domains/sarkar.pk/public_html`
+- **DIGITAX Domain**: `digitax.pk` — Document Root: `/home/tadbeer/domains/digitax.pk/public_html`
+- **Isolation Guarantee**: All DIGITAX operations, uploads, environment configurations, and static files reside strictly inside the `domains/digitax.pk` directory tree. At no point should any files be written to `domains/sarkar.pk/` or the account root.
 
-### 2.2 Upload and Extract Deployment Files
-1. In cPanel, go to **"File Manager"** under **"Files"**
-2. Navigate to the application root folder you just created (e.g., `digitax-app`)
-3. Click **"Upload"** at the top
-4. Upload `digitax-deploy.zip` from your project folder
-5. Once uploaded, go back to the File Manager, right-click `digitax-deploy.zip` and select **"Extract"**
-6. Click **"Extract File(s)"**
+---
 
-### 2.3 Configure Environment Variables
-1. In the File Manager, go to your application root folder
-2. Create a new file named `.env`
-3. Edit the `.env` file and add the following (replace with your actual database details):
-   ```env
-   # Database Configuration
-   DB_HOST=localhost
-   DB_PORT=3306
-   DB_NAME=tadbeer_digitax_db
-   DB_USER=tadbeer_digitax_user
-   DB_PASS=your_database_password_here
+## 2. Database Setup & Migration
 
-   # JWT Secret (generate a secure random string)
-   JWT_SECRET=change-this-to-a-secure-random-string
+### 2.1 Database & User Creation
+1. Log in to the hosting control panel (`https://digitax.pk:2083` or DirectAdmin).
+2. Navigate to **MySQL Management** / **MySQL® Database Wizard**.
+3. Create a dedicated database: `tadbeer_digitax_db`.
+4. Create a dedicated user: `tadbeer_digitax_user` with a strong, unique password (e.g. 24+ characters alphanumeric with symbols).
+5. Assign user `tadbeer_digitax_user` to `tadbeer_digitax_db` with `ALL PRIVILEGES`.
 
-   # Email Configuration (optional, if you want to use email features)
-   SMTP_HOST=
-   SMTP_PORT=
-   SMTP_USER=
-   SMTP_PASS=
+### 2.2 Schema Import
+1. Open **phpMyAdmin**.
+2. Select database `tadbeer_digitax_db`.
+3. Go to the **Import** tab.
+4. Upload [database_setup.sql](file:///c:/Users/Logo/Desktop/LAW-WEBSITE/database_setup.sql) from the repository.
+5. Click **Import / Go**.
+   - The script creates all 34 tables using `CREATE TABLE IF NOT EXISTS` with `ENGINE=InnoDB` and `utf8mb4`.
+   - Populates initial defaults for settings, tax slabs, pricing, email templates, and admin account.
+
+---
+
+## 3. Node.js Application Configuration (Setup Node.js App)
+
+In the hosting control panel under **Software** -> **Setup Node.js App**:
+
+| Setting | Production Value |
+| :--- | :--- |
+| **Node.js version** | `20.x` (or latest LTS available) |
+| **Application mode** | `Production` |
+| **Application root** | `domains/digitax.pk/public_html` (or `digitax-app`) |
+| **Application URL** | `digitax.pk` |
+| **Application startup file** | `server.js` |
+
+Click **Create / Save**.
+
+---
+
+## 4. Environment Configuration (`.env`)
+
+Inside the application directory (`domains/digitax.pk/public_html/`), create a production `.env` file:
+
+```env
+NODE_ENV=production
+NEXT_PUBLIC_APP_URL=https://digitax.pk
+NEXT_PUBLIC_BASE_URL=https://digitax.pk
+
+# Database Configuration (MySQL / MariaDB)
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=tadbeer_digitax_db
+DB_USER=tadbeer_digitax_user
+DB_PASS=YOUR_STRONG_DATABASE_PASSWORD_HERE
+
+# JWT Secret (Min 64 random bytes)
+JWT_SECRET=YOUR_64_CHAR_HEX_OR_RANDOM_SECRET_HERE
+
+# SMTP Email Configuration
+SMTP_HOST=mail.digitax.pk
+SMTP_PORT=465
+SMTP_USER=info@digitax.pk
+SMTP_PASS=YOUR_SMTP_PASSWORD_HERE
+SMTP_FROM=info@digitax.pk
+ADMIN_EMAIL=admin@digitax.pk
+
+# Google OAuth (Optional)
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_ID=
+```
+
+> [!CAUTION]
+> Never commit `.env`, `.env.local`, or any passwords to Git. The `.gitignore` and `.htaccess` files protect these files from both repository tracking and direct HTTP access.
+
+---
+
+## 5. Deployment Methods
+
+### Method A: Automated Git Push Workflow (Recommended)
+cPanel / DirectAdmin provides Git repository tracking configured at:
+`https://tadbeer@server15.hndservers.net/domains/digitax.pk/law-website.git`
+
+To deploy code updates:
+```bash
+# 1. Commit changes
+git add -A
+git commit -m "feat: production updates"
+
+# 2. Push to server
+git push cpanel main
+```
+The `.cpanel.yml` file in the root automatically:
+1. Copies standalone files to `/home/tadbeer/domains/digitax.pk/public_html`.
+2. Copies `.next/static` and `public/` assets.
+3. Touches `tmp/restart.txt` to trigger a zero-downtime application restart.
+
+---
+
+### Method B: Zip Archive Deployment (Manual / Fallback)
+
+1. Build and package the application locally:
+   ```powershell
+   # Run the deployment packaging script
+   node prepare-deploy.js
    ```
-4. Save the file
+   This generates `digitax-deploy.zip` containing:
+   - Next.js Standalone server & chunks (`.next/standalone`)
+   - Static client assets (`.next/static`)
+   - Public assets and uploads (`public/`)
+   - Hardened Apache rules (`.htaccess`)
+   - Startup script (`server.js`)
 
-### 2.4 Install Dependencies and Start the App
-1. Go back to **"Setup Node.js App"** in cPanel
-2. Click **"Edit"** next to your application
-3. In the **"Detected configuration files"** section, click **"Run NPM Install"**
-4. Wait for dependencies to install
-5. Once installed, click **"Restart"** to start the application
+2. In cPanel **File Manager**:
+   - Navigate to `/home/tadbeer/domains/digitax.pk/public_html/`.
+   - Upload `digitax-deploy.zip`.
+   - Extract the archive in place.
+   - Delete `digitax-deploy.zip`.
 
----
-
-## Step 3: Verify the Deployment
-1. Open your browser and go to https://digitax.pk
-2. The app should load successfully!
-3. To access the admin panel, go to https://digitax.pk/admin
-   - Default admin email: admin123@gmail.com
-   - Default admin password: 12345 (**PLEASE CHANGE THIS AFTER FIRST LOGIN!**)
-
----
-
-## Troubleshooting
-- If the app doesn't load, check the Node.js error logs in cPanel's **"Setup Node.js App"** section
-- Make sure all environment variables are correctly set
-- Verify the database connection details in `.env`
-- Ensure the database user has all privileges
+3. Restart the app:
+   - In **Setup Node.js App**, click **Restart**.
+   - Or create an empty file: `tmp/restart.txt`.
 
 ---
 
-## Important Notes
-- Always back up your database before making changes
-- Change the default admin password immediately after first login
-- Keep your `.env` file secure and never commit it to version control
-- For HTTPS, ensure your domain has an SSL certificate installed (cPanel usually provides free Let's Encrypt certificates)
+## 6. Zero-Downtime & Application Restart
+
+Phusion Passenger automatically monitors `tmp/restart.txt`. Whenever this file is touched or modified, Passenger initiates a rolling restart without dropping in-flight HTTP requests:
+
+```bash
+touch /home/tadbeer/domains/digitax.pk/public_html/tmp/restart.txt
+```
 
 ---
 
-## Contact Support
-If you run into any issues, feel free to reach out!
+## 7. Database Backup & Restore
+
+### Taking a Complete Backup
+From cPanel / phpMyAdmin:
+1. Go to **phpMyAdmin** -> `tadbeer_digitax_db`.
+2. Click **Export** -> Format: **SQL** -> Click **Export**.
+
+Or via SSH:
+```bash
+mysqldump -u tadbeer_digitax_user -p tadbeer_digitax_db > /home/tadbeer/backups/digitax_backup_$(date +%Y%m%d_%H%M%S).sql
+```
+
+### Restoring from Backup
+```bash
+mysql -u tadbeer_digitax_user -p tadbeer_digitax_db < /home/tadbeer/backups/digitax_backup_YYYYMMDD_HHMMSS.sql
+```
+
+---
+
+## 8. Post-Deployment Verification Checklist
+
+After deployment, verify each item at `https://digitax.pk`:
+
+- [ ] **Public Access**: `https://digitax.pk` loads with CSS, images, and brand headers.
+- [ ] **SSL / Redirect**: `http://digitax.pk` redirects to `https://digitax.pk` (301).
+- [ ] **Canonical Apex**: `https://www.digitax.pk` redirects to `https://digitax.pk` (301).
+- [ ] **Main Site Isolation**: `https://sarkar.pk` loads independently without interference.
+- [ ] **Security Protection**:
+  - `https://digitax.pk/.env` returns **403 Forbidden**.
+  - `https://digitax.pk/package.json` returns **403 Forbidden**.
+  - `https://digitax.pk/server.js` returns **403 Forbidden**.
+- [ ] **Database Connection**: User signup, login, and application drafts save to MySQL.
+- [ ] **Admin Security**: Accessing `/admin` requires admin credentials; unauthenticated API calls to `/api/admin/*` return **401 Unauthorized**.
+- [ ] **Email System**: Transactional notifications dispatch through `mail.digitax.pk:465`.

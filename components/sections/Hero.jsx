@@ -2,7 +2,7 @@
 
 export default function Hero({ settings = [], user = null }) {
   const title = settings.find(s => s.key === "site_slogan")?.value || "File Your Taxes In Just 6 Minutes With Our Qualified Consultants!";
-  const description = settings.find(s => s.key === "hero_description")?.value || "Befiler goes beyond tax filing! We also help with business registration, sales tax filing, trademark registration, and LLC registration in the USA — all in one place.";
+  const description = settings.find(s => s.key === "hero_description")?.value || "DIGITAX goes beyond tax filing! We also help with business registration, sales tax filing, trademark registration, and LLC registration in the USA — all in one place.";
   const heroImage = settings.find(s => s.key === "hero_image")?.value;
   const ctaText = settings.find(s => s.key === "hero_cta_text")?.value || "File Now";
   const ctaLink = settings.find(s => s.key === "hero_cta_link")?.value || "/portal";
@@ -11,9 +11,10 @@ export default function Hero({ settings = [], user = null }) {
     if (ctaLink && ctaLink.startsWith("http")) {
       window.location.href = ctaLink;
     } else if (user) {
-      window.location.href = "/portal";
+      window.location.href = ctaLink || "/portal";
     } else {
-      window.location.href = "/login";
+      const target = ctaLink || "/portal";
+      window.location.href = `/login?redirect=${encodeURIComponent(target)}`;
     }
   };
 

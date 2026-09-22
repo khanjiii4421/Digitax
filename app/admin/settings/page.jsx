@@ -33,6 +33,7 @@ function SiteSettingsContent() {
 
   const tabs = [
     { key: "brand", label: "Brand & Identity", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" },
+    { key: "promo", label: "Promo Popup", icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" },
     { key: "hero", label: "Hero Section", icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" },
     { key: "about", label: "About", icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
     { key: "team", label: "Team", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
@@ -164,7 +165,7 @@ function SiteSettingsContent() {
     </div>
   );
 
-  const isBasicSettingsTab = ["brand", "hero", "contact", "footer", "legal"].includes(activeTab);
+  const isBasicSettingsTab = ["brand", "promo", "hero", "contact", "footer", "legal"].includes(activeTab);
 
   if (loading) {
     return (
@@ -175,7 +176,7 @@ function SiteSettingsContent() {
   }
 
   return (
-    <div className="flex flex-col gap-0 anim-fade-in max-w-4xl">
+    <div className="flex flex-col gap-0 anim-fade-in w-full max-w-6xl">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
         <div>
           <h1 className="text-3xl font-heading font-bold text-text-primary">Site Settings</h1>
@@ -192,7 +193,7 @@ function SiteSettingsContent() {
         )}
       </div>
 
-      <div className="sticky top-0 z-20 bg-gray-50 pt-2 pb-0 -mx-8 px-8">
+      <div className="bg-gray-50 pt-2 pb-0 mb-6">
         <div className="flex gap-1 overflow-x-auto scrollbar-none border-b border-gray-200">
           {tabs.map(tab => (
             <button
@@ -211,7 +212,141 @@ function SiteSettingsContent() {
         </div>
       </div>
 
-      <div className="mt-6">
+      <div>
+        {activeTab === "promo" && (
+          <div className="bg-white rounded-[20px] p-8 border border-gray-200/60 shadow-sm flex flex-col gap-8 anim-slide-up">
+            <div>
+              <h2 className="text-xl font-bold border-b border-gray-100 pb-4">Promotional Discount Popup Banner</h2>
+              <p className="text-xs text-text-secondary mt-1">Manage the eye-catching promotional discount popup shown to website visitors.</p>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              {/* Enable / Disable */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-200">
+                <div>
+                  <h4 className="font-bold text-sm text-text-primary">Popup Status</h4>
+                  <p className="text-xs text-text-secondary">Enable or disable the promotional discount popup on the homepage</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                    <input
+                      type="radio"
+                      name="promo_popup_enabled"
+                      value="1"
+                      checked={settings.promo_popup_enabled === '1' || !settings.promo_popup_enabled}
+                      onChange={handleChange}
+                      className="accent-primary"
+                    />
+                    Enabled (Active)
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-text-secondary">
+                    <input
+                      type="radio"
+                      name="promo_popup_enabled"
+                      value="0"
+                      checked={settings.promo_popup_enabled === '0'}
+                      onChange={handleChange}
+                      className="accent-primary"
+                    />
+                    Disabled
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col gap-2">
+                  <label className="font-bold text-sm text-text-primary">Offer Badge Text</label>
+                  <input
+                    type="text"
+                    name="promo_popup_badge"
+                    value={settings.promo_popup_badge || ''}
+                    onChange={handleChange}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white text-sm"
+                    placeholder="e.g. Special Limited Offer"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="font-bold text-sm text-text-primary">Discount Display Tag</label>
+                  <input
+                    type="text"
+                    name="promo_popup_discount"
+                    value={settings.promo_popup_discount || ''}
+                    onChange={handleChange}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white text-sm"
+                    placeholder="e.g. 30% OFF"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <label className="font-bold text-sm text-text-primary">Headline Title</label>
+                  <input
+                    type="text"
+                    name="promo_popup_title"
+                    value={settings.promo_popup_title || ''}
+                    onChange={handleChange}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white text-sm"
+                    placeholder="e.g. Get 30% OFF On Tax Filing Services!"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <label className="font-bold text-sm text-text-primary">Description / Subtitle</label>
+                  <textarea
+                    rows={3}
+                    name="promo_popup_description"
+                    value={settings.promo_popup_description || ''}
+                    onChange={handleChange}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white text-sm resize-none"
+                    placeholder="Provide promotional details..."
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="font-bold text-sm text-text-primary">Promo Coupon Code</label>
+                  <input
+                    type="text"
+                    name="promo_popup_coupon_code"
+                    value={settings.promo_popup_coupon_code || ''}
+                    onChange={handleChange}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white text-sm uppercase font-mono font-bold"
+                    placeholder="e.g. SAVE30"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="font-bold text-sm text-text-primary">Target Service Link</label>
+                  <select
+                    name="promo_popup_service_url"
+                    value={settings.promo_popup_service_url || '/portal/personal-tax'}
+                    onChange={handleChange}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white text-sm cursor-pointer"
+                  >
+                    <option value="/portal/personal-tax">Individual / Personal Tax Filing (/portal/personal-tax)</option>
+                    <option value="/portal/family-tax">Family Tax Filing (/portal/family-tax)</option>
+                    <option value="/portal/ntn-registration">NTN Registration (/portal/ntn-registration)</option>
+                    <option value="/portal/business-registration">Business Registration (/portal/business-registration)</option>
+                    <option value="/portal/gst-registration">GST Registration (/portal/gst-registration)</option>
+                    <option value="/portal/iris-profile">IRIS Profile Update (/portal/iris-profile)</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <label className="font-bold text-sm text-text-primary">CTA Button Text</label>
+                  <input
+                    type="text"
+                    name="promo_popup_button_text"
+                    value={settings.promo_popup_button_text || ''}
+                    onChange={handleChange}
+                    className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white text-sm"
+                    placeholder="e.g. Claim 30% Discount Now"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === "brand" && (
           <div className="bg-white rounded-[20px] p-8 border border-gray-200/60 shadow-sm flex flex-col gap-8 anim-slide-up">
             <h2 className="text-xl font-bold border-b border-gray-100 pb-4">Brand & Identity</h2>
@@ -236,6 +371,10 @@ function SiteSettingsContent() {
               <div className="flex flex-col gap-2 md:col-span-2">
                 <label className="font-bold text-sm text-text-primary">Meta Description (SEO)</label>
                 <textarea name="meta_description" value={settings.meta_description || ''} onChange={handleChange} rows={3} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full resize-none" placeholder="Short description for search engines..." />
+              </div>
+              <div className="flex flex-col gap-2 md:col-span-2">
+                <label className="font-bold text-sm text-text-primary">Google OAuth Client ID <span className="text-text-secondary font-normal">(for Google Sign-In button on login page)</span></label>
+                <input type="text" name="google_client_id" value={settings.google_client_id || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full font-mono text-sm" placeholder="e.g. 1234567890-abcdefg.apps.googleusercontent.com" />
               </div>
             </div>
           </div>
@@ -321,7 +460,7 @@ function SiteSettingsContent() {
               <h3 className="font-bold text-sm text-text-secondary uppercase tracking-widest mb-4">Contact Info</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex flex-col gap-2">
-                  <label className="font-bold text-sm text-text-primary">Phone Number</label>
+                  <label className="font-bold text-sm text-text-primary">General Phone Number</label>
                   <input type="text" name="contact_phone" value={settings.contact_phone || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" placeholder="+92 300 1234567" />
                 </div>
                 <div className="flex flex-col gap-2">
@@ -329,12 +468,24 @@ function SiteSettingsContent() {
                   <input type="text" name="contact_whatsapp" value={settings.contact_whatsapp || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" placeholder="+92 300 1234567" />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="font-bold text-sm text-text-primary">Display Email</label>
-                  <input type="email" name="contact_email" value={settings.contact_email || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" />
+                  <label className="font-bold text-sm text-text-primary">Support Phone (Header Top Bar)</label>
+                  <input type="text" name="support_phone" value={settings.support_phone || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" placeholder="+92 349 1887803" />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="font-bold text-sm text-text-primary">Admin Email (Receives Queries)</label>
-                  <input type="email" name="admin_email" value={settings.admin_email || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" />
+                  <label className="font-bold text-sm text-text-primary">NTN / Tax Filing Phone (Header Top Bar)</label>
+                  <input type="text" name="ntn_phone" value={settings.ntn_phone || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" placeholder="+92 349 1887803" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="font-bold text-sm text-text-primary">USA LLC & ITIN Phone (Header Top Bar)</label>
+                  <input type="text" name="usa_phone" value={settings.usa_phone || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" placeholder="+1 (302) 555-0199" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="font-bold text-sm text-text-primary">Display Email (Header & Footer)</label>
+                  <input type="email" name="contact_email" value={settings.contact_email || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" placeholder="info@digitax.pk" />
+                </div>
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <label className="font-bold text-sm text-text-primary">Admin Email (Receives Contact Queries)</label>
+                  <input type="email" name="admin_email" value={settings.admin_email || ''} onChange={handleChange} className="border border-gray-200 rounded-xl px-4 py-3 focus:outline-primary bg-gray-50 focus:bg-white transition-colors w-full" placeholder="admin@digitax.pk" />
                 </div>
                 <div className="flex flex-col gap-2 md:col-span-2">
                   <label className="font-bold text-sm text-text-primary">Office Address (Header Bar)</label>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useToast } from "@/components/ToastProvider";
 
 const STATUS_STEPS = ["pending", "in-review", "in-progress", "completed"];
 const STATUS_LABELS = {
@@ -41,10 +42,13 @@ const PAYMENT_COLORS = {
 };
 
 export default function MyApplications() {
+  const { showToast } = useToast();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchApps = async () => {
     try {
@@ -55,10 +59,10 @@ export default function MyApplications() {
 
       let list = [];
       if (ntnRes.success && Array.isArray(ntnRes.applications)) {
-        list = list.concat(ntnRes.applications.map(item => ({ ...item, appType: 'ntn' })));
+        list = list.concat(ntnRes.applications.map(item => ({ ...item, appType: item.service_type || 'ntn' })));
       }
       if (familyRes.success && Array.isArray(familyRes.data)) {
-        const submittedFamily = familyRes.data.filter(item => !item.is_draft);
+        const submittedFamily = familyRes.data.filter(item => !item.is_draft && !item.deleted_at);
         list = list.concat(submittedFamily.map(item => ({ ...item, appType: 'family_tax' })));
       }
 
@@ -71,6 +75,28 @@ export default function MyApplications() {
   };
 
   useEffect(() => { fetchApps(); }, []);
+
+  const handleDeleteApp = async (app) => {
+    setDeleting(true);
+    try {
+      const endpoint = app.appType === 'family_tax'
+        ? `/api/family-tax/applications?id=${app.id}`
+        : `/api/portal/applications?id=${app.id}`;
+      const res = await fetch(endpoint, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || "Application cancelled successfully.", "success");
+        setDeleteConfirm(null);
+        fetchApps();
+      } else {
+        showToast(data.error || "Failed to delete application.", "error");
+      }
+    } catch (e) {
+      showToast("Error deleting application. Please try again.", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleDownload = (url, filename) => {
     const a = document.createElement("a");
@@ -87,7 +113,7 @@ export default function MyApplications() {
     if (navigator.share && docUrl) {
       try {
         await navigator.share({
-          title: app.appType === 'family_tax' ? "Family Tax Filing Document" : "NTN Registration Document",
+          title: app.appType === 'family_tax' ? "Family Tax Filing Document" : "Service Application Document",
           text: `Application #${app.order_number || app.id}`,
           url: window.location.origin + docUrl,
         });
@@ -109,6 +135,15 @@ export default function MyApplications() {
       <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
+
+  const getServiceBadge = (type) => {
+    if (type === 'family_tax') return { label: 'Family Tax', bg: 'bg-blue-100 text-blue-700' };
+    if (type === 'personal-tax') return { label: 'Personal Tax', bg: 'bg-emerald-100 text-emerald-700' };
+    if (type === 'iris-profile') return { label: 'IRIS 181', bg: 'bg-indigo-100 text-indigo-700' };
+    if (type === 'business-registration') return { label: 'Business Reg', bg: 'bg-amber-100 text-amber-700' };
+    if (type === 'gst-registration') return { label: 'GST Reg', bg: 'bg-cyan-100 text-cyan-700' };
+    return { label: 'NTN Reg', bg: 'bg-primary/10 text-primary' };
+  };
 
   return (
     <div className="flex flex-col gap-6 anim-fade-in">
@@ -138,7 +173,10 @@ export default function MyApplications() {
           {applications.map((app, idx) => {
             const isFamily = app.appType === 'family_tax';
             const uniqueKey = isFamily ? `family_${app.id}` : `ntn_${app.id}`;
-            const title = isFamily ? `Family Tax Filing (#${app.order_number})` : `NTN Registration - ${app.category}`;
+            const badge = getServiceBadge(app.appType);
+            const title = isFamily
+              ? `Family Tax Filing (#${app.order_number})`
+              : `${badge.label} — ${app.category || 'Standard'}`;
 
             return (
               <div key={uniqueKey} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -148,20 +186,18 @@ export default function MyApplications() {
                   className="w-full p-5 md:p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-all"
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${isFamily ? 'bg-blue-100 text-blue-700' : 'bg-primary/10 text-primary'}`}>
-                      {isFamily ? 'FT' : 'NTN'}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${badge.bg}`}>
+                      {isFamily ? 'FT' : (app.appType || 'NTN').substring(0, 3).toUpperCase()}
                     </div>
                     <div className="text-left">
                       <p className="font-bold text-text-primary text-sm flex items-center gap-2">
                         {title}
-                        {isFamily && (
-                          <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
-                            Family Tax
-                          </span>
-                        )}
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border border-current ${badge.bg}`}>
+                          {badge.label}
+                        </span>
                       </p>
                       <p className="text-xs text-text-secondary mt-0.5">
-                        Submitted: {new Date(app.created_at).toLocaleDateString()} &bull; Applicant: {isFamily ? app.full_name : app.category}
+                        Submitted: {new Date(app.created_at).toLocaleDateString()} &bull; Fee: PKR {(parseFloat(app.amount) || 0).toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -169,7 +205,7 @@ export default function MyApplications() {
                     <span className={`text-xs font-bold px-3 py-1 rounded-full ${STATUS_COLORS[app.status] || "bg-gray-100 text-gray-600"}`}>
                       {STATUS_LABELS[app.status] || app.status}
                     </span>
-                    {isFamily ? (
+                    {isFamily && (
                       <Link 
                         href={`/portal/family-tax/${app.id}`} 
                         onClick={e => e.stopPropagation()}
@@ -177,7 +213,22 @@ export default function MyApplications() {
                       >
                         View Details
                       </Link>
-                    ) : (
+                    )}
+                    {['pending', 'Payment Pending', 'Draft'].includes(app.status) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirm(app);
+                        }}
+                        className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                        title="Cancel Application"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
+                    {!isFamily && (
                       <svg className={`w-5 h-5 text-gray-400 transition-transform ${expanded === uniqueKey ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                     )}
                   </div>
@@ -321,6 +372,38 @@ export default function MyApplications() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 anim-fade-in" onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-md shadow-2xl text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-14 h-14 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Cancel Application?</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you want to cancel and delete Application <strong>#{deleteConfirm.id}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 border border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-all cursor-pointer"
+              >
+                No, Keep It
+              </button>
+              <button
+                onClick={() => handleDeleteApp(deleteConfirm)}
+                disabled={deleting}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

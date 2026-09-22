@@ -30,7 +30,8 @@ export async function POST(req) {
     }
 
     let discountAmount = 0;
-    if (coupon.discount_type === 'percent') {
+    const discountType = (coupon.discount_type || '').toLowerCase();
+    if (discountType === 'percent' || discountType === 'percentage') {
       discountAmount = (baseAmount * coupon.discount_value) / 100;
     } else {
       discountAmount = coupon.discount_value;

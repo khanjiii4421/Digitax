@@ -34,17 +34,37 @@ export async function POST(req) {
     } catch(e) {}
 
     const info = await db.run('INSERT INTO queries (name, email, phone, subject, message, user_id) VALUES (?, ?, ?, ?, ?, ?)', [name, email, phone || null, subject, message, userId]);
-    const queryId = info.insertId;
+    const queryId = info.insertId || info.lastInsertRowid;
 
     // Notify admin
-    const adminEmailRow = await db.get('SELECT value FROM settings WHERE `key` = ?', ['contact_email']);
-    const adminEmail = adminEmailRow ? adminEmailRow.value : 'info@digitax.pk';
+    const adminEmailRow = await db.get("SELECT value FROM settings WHERE `key` = 'admin_email'") || await db.get("SELECT value FROM settings WHERE `key` = 'contact_email'");
+    const adminEmail = adminEmailRow ? adminEmailRow.value : 'info@digitax.com';
 
     await sendEmail({
       to: adminEmail,
       subject: `New Lead Inquiry: ${subject}`,
-      text: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\n\nMessage:\n${message}`,
-      html: `<h3>New Lead Inquiry</h3><p><strong>Name:</strong> ${name}</p><p><strong>Email:</strong> ${email}</p><p><strong>Subject:</strong> ${subject}</p><p><strong>Message:</strong><br/>${message.replace(/\n/g, '<br/>')}</p>`
+      text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone || 'N/A'}\nSubject: ${subject}\n\nMessage:\n${message}`,
+      html: `
+        <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#f4f7fb;padding:24px;">
+          <div style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+            <div style="background:#111827;padding:20px;text-align:center;">
+              <h2 style="color:#ffffff;margin:0;font-size:18px;">DIGITAX Lead Inquiry</h2>
+            </div>
+            <div style="padding:24px;">
+              <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+                <tr><td style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;width:30%;">Name</td><td style="padding:8px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;font-weight:bold;">${name}</td></tr>
+                <tr><td style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Email</td><td style="padding:8px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;">${email}</td></tr>
+                <tr><td style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Phone</td><td style="padding:8px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;">${phone || 'N/A'}</td></tr>
+                <tr><td style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Subject</td><td style="padding:8px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#0056A8;font-weight:bold;">${subject}</td></tr>
+              </table>
+              <div style="background:#f8fafc;border-left:4px solid #0056A8;padding:14px;border-radius:6px;">
+                <p style="color:#64748b;font-size:11px;font-weight:bold;margin:0 0 6px;text-transform:uppercase;">Message</p>
+                <p style="color:#1e293b;font-size:13px;line-height:1.6;margin:0;">${message.replace(/\n/g, '<br/>')}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `
     });
 
     // Send confirmation to client

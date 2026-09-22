@@ -33,13 +33,23 @@ export async function POST(req) {
       );
     }
 
-    const user = await db.get("SELECT id, name, email, password_hash, role, locked_until FROM users WHERE email = ? AND role = 'admin'", [email]);
+    const user = await db.get(
+      "SELECT id, name, email, password_hash, role, permissions, is_active, locked_until FROM users WHERE email = ? AND role IN ('admin', 'subadmin')", 
+      [email]
+    );
 
     if (!user || !verifyPassword(password, user.password_hash)) {
       if (user) recordFailedAttempt(email);
       return new Response(
-        JSON.stringify({ success: false, message: "Invalid admin credentials." }),
+        JSON.stringify({ success: false, message: "Invalid admin or sub-admin credentials." }),
         { status: 401, headers: { "Content-Type": "application/json", ...securityHeaders } }
+      );
+    }
+
+    if (user.is_active === 0) {
+      return new Response(
+        JSON.stringify({ success: false, message: "Your account is currently disabled. Please contact the administrator." }),
+        { status: 403, headers: { "Content-Type": "application/json", ...securityHeaders } }
       );
     }
 
@@ -51,7 +61,13 @@ export async function POST(req) {
     }
 
     resetFailedAttempts(email);
-    const token = signToken({ id: user.id, name: user.name, email: user.email, role: user.role });
+    const token = signToken({ 
+      id: user.id, 
+      name: user.name, 
+      email: user.email, 
+      role: user.role,
+      permissions: user.permissions || ''
+    });
     const refreshToken = signToken({ id: user.id, tokenType: 'refresh' });
     const cookieStore = await cookies();
 
@@ -75,7 +91,19 @@ export async function POST(req) {
     });
 
     return new Response(
-      JSON.stringify({ success: true, message: "Signed in successfully!", data: { user: { id: user.id, name: user.name, email: user.email, role: user.role } } }),
+      JSON.stringify({ 
+        success: true, 
+        message: "Signed in successfully!", 
+        data: { 
+          user: { 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            role: user.role,
+            permissions: user.permissions || ''
+          } 
+        } 
+      }),
       { status: 200, headers: { "Content-Type": "application/json", ...securityHeaders } }
     );
   } catch (error) {

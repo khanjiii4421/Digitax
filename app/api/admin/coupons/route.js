@@ -48,10 +48,45 @@ export async function POST(req) {
       VALUES (?, ?, ?, ?, ?, ?)
     `, [cleanCode, discountType, parseFloat(discountValue), parseFloat(minAmount), parseInt(maxUses, 10), expiresAt || null]);
 
-    return NextResponse.json({ success: true, message: 'Coupon created successfully', id: res.insertId });
+    const newId = res.insertId || res.lastInsertRowid;
+    return NextResponse.json({ success: true, message: 'Coupon created successfully', id: newId });
   } catch (error) {
     console.error('Error creating coupon:', error);
     return NextResponse.json({ success: false, error: 'Failed to create coupon' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('admin_token')?.value || cookieStore.get('token')?.value;
+    const decoded = verifyToken(token);
+    if (!decoded || decoded.role !== 'admin') {
+      return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { id, is_active, max_uses, discount_value } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Coupon ID is required' }, { status: 400 });
+    }
+
+    const fields = [];
+    const values = [];
+    if (is_active !== undefined) { fields.push("is_active = ?"); values.push(is_active ? 1 : 0); }
+    if (max_uses !== undefined) { fields.push("max_uses = ?"); values.push(parseInt(max_uses, 10)); }
+    if (discount_value !== undefined) { fields.push("discount_value = ?"); values.push(parseFloat(discount_value)); }
+
+    if (fields.length > 0) {
+      values.push(id);
+      await db.run(`UPDATE coupons SET ${fields.join(", ")} WHERE id = ?`, values);
+    }
+
+    return NextResponse.json({ success: true, message: 'Coupon updated successfully' });
+  } catch (error) {
+    console.error('Error updating coupon:', error);
+    return NextResponse.json({ success: false, error: 'Failed to update coupon' }, { status: 500 });
   }
 }
 

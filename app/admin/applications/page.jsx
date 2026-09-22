@@ -59,86 +59,162 @@ function StatusTimeline({ currentStatus }) {
   );
 }
 
+export const formatAppId = (id) => '#' + (Number(id) < 2192 ? (2191 + Number(id || 1)) : id);
+
 function exportPDF(app) {
   const w = window.open("", "_blank");
   if (!w) return alert("Please allow popups to export PDF.");
-  const catLabel = (app.category || "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  const displayId = formatAppId(app.id);
+  const catLabel = (app.category || "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "NTN Registration";
   const date = new Date(app.created_at).toLocaleString();
-  w.document.write(`<!DOCTYPE html><html><head><title>Application #${app.id}</title>
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  w.document.write(`<!DOCTYPE html><html><head><title>DIGITAX - Application Verification Report ${displayId}</title>
+<meta charset="utf-8"/>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; padding: 30px; color: #1a202c; }
-  .header { background: linear-gradient(135deg, #1a5276, #2980b9); color: white; padding: 25px 30px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
-  .header h1 { font-size: 24px; }
-  .header .badge { background: rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: bold; }
-  .section { margin-bottom: 20px; }
-  .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #718096; margin-bottom: 10px; font-weight: bold; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @page { size: A4 portrait; margin: 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #0f172a; background: #ffffff; line-height: 1.5; font-size: 13px; }
+  
+  .header { border-bottom: 3px solid #0056A8; padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+  .logo-block { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 38px; height: 38px; background: #0056A8; border-radius: 50%; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; line-height: 38px; text-align: center; }
+  .logo-text { font-size: 24px; font-weight: 900; color: #0056A8; letter-spacing: -0.5px; line-height: 1.1; }
+  .logo-sub { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; }
+  .header-meta { text-align: right; }
+  .app-badge { display: inline-block; background: #0056A8; color: #ffffff; padding: 6px 16px; border-radius: 8px; font-size: 14px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .meta-date { font-size: 11px; color: #64748b; font-weight: 500; }
+  
+  .section { margin-bottom: 18px; page-break-inside: avoid; }
+  .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #0056A8; margin-bottom: 10px; font-weight: 800; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-  .info-box { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
-  .info-box .label { font-size: 11px; color: #a0aec0; margin-bottom: 2px; }
-  .info-box .value { font-size: 14px; font-weight: bold; }
-  .docs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .doc-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-  .doc-card img { width: 100%; height: 120px; object-fit: cover; }
-  .doc-card .doc-label { font-size: 11px; text-align: center; padding: 6px; background: #f7fafc; font-weight: bold; color: #4a5568; }
-  .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #a0aec0; border-top: 1px solid #e2e8f0; padding-top: 15px; }
-  @media print { body { padding: 15px; } .no-print { display: none; } }
+  .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; }
+  .info-box .label { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
+  .info-box .value { font-size: 13px; font-weight: 700; color: #0f172a; word-break: break-word; }
+  
+  /* High-Res Documents Grid */
+  .docs-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; page-break-inside: avoid; }
+  .doc-container { border: 1.5px solid #cbd5e1; border-radius: 10px; overflow: hidden; background: #ffffff; display: flex; flex-direction: column; }
+  .doc-header { padding: 8px 12px; font-size: 11px; font-weight: 800; background: #f1f5f9; color: #1e293b; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+  /* CNIC is landscape card — taller container */
+  .doc-img-wrap { width: 100%; min-height: 220px; background: #f8fafc; display: flex; align-items: center; justify-content: center; padding: 10px; overflow: hidden; }
+  .doc-img-wrap img { max-width: 100%; max-height: 210px; width: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.10); display: block; }
+  /* Selfie / portrait photo — square container */
+  .doc-img-selfie { width: 100%; min-height: 260px; background: #f8fafc; display: flex; align-items: center; justify-content: center; padding: 10px; overflow: hidden; }
+  .doc-img-selfie img { max-width: 100%; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.10); display: block; }
+  .doc-footer { padding: 6px 12px; background: #ffffff; border-top: 1px solid #f1f5f9; text-align: center; }
+  .doc-footer a { font-size: 10px; color: #0056A8; text-decoration: none; font-weight: 700; }
+  .doc-empty { min-height: 200px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 12px; font-weight: 500; background: #f8fafc; width: 100%; }
+  
+  .stamp-box { margin-top: 20px; padding: 14px 18px; border: 1.5px dashed #0056A8; border-radius: 10px; background: #f0f7ff; display: flex; justify-content: space-between; align-items: center; page-break-inside: avoid; }
+  .stamp-text { font-size: 12px; color: #0056A8; font-weight: 800; }
+  .stamp-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .stamp-verified { font-size: 11px; color: #166534; font-weight: 900; border: 2px solid #166534; padding: 4px 14px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; background: #ffffff; }
+  
+  .footer { margin-top: 24px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+  .btn-print { background: #0056A8; color: white; border: none; padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(0,86,168,0.25); }
+  @media print { body { padding: 0; } .no-print { display: none; } }
 </style></head><body>
-  <div class="no-print" style="text-align:center;margin-bottom:20px;">
-    <button onclick="window.print()" style="background:#1a5276;color:white;border:none;padding:10px 30px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">Print / Save as PDF</button>
+  <div class="no-print" style="text-align:center;margin-bottom:20px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
+    <button onclick="window.print()" class="btn-print">🖨️ Print / Save as Official PDF</button>
   </div>
+  
   <div class="header">
-    <div>
-      <h1>DIGITAX</h1>
-      <p style="font-size:13px;opacity:0.8;margin-top:4px;">NTN Registration Application Report</p>
+    <div class="logo-block">
+      <div class="logo-icon">D</div>
+      <div>
+        <div class="logo-text">DIGITAX</div>
+        <div class="logo-sub">Pakistan Premier Tax & Legal Consultants</div>
+      </div>
     </div>
-    <div class="badge">#${app.id} — ${STATUS_LABELS[app.status] || app.status}</div>
+    <div class="header-meta">
+      <div class="app-badge">${displayId}</div>
+      <div class="meta-date">Date: ${date}</div>
+    </div>
   </div>
 
   <div class="section">
-    <div class="section-title">Customer Information</div>
-    <div class="grid">
+    <div class="section-title">1. Applicant Details</div>
+    <div class="grid-2">
       <div class="info-box"><div class="label">Full Name</div><div class="value">${app.user_name || "N/A"}</div></div>
-      <div class="info-box"><div class="label">Email</div><div class="value">${app.user_email || "N/A"}</div></div>
-      <div class="info-box"><div class="label">Phone</div><div class="value">${app.user_phone || "N/A"}</div></div>
-      <div class="info-box"><div class="label">CNIC</div><div class="value" style="font-family:monospace;">${app.user_cnic || "N/A"}</div></div>
+      <div class="info-box"><div class="label">CNIC Number</div><div class="value" style="font-family:monospace;letter-spacing:1px;">${app.user_cnic || "N/A"}</div></div>
+      <div class="info-box"><div class="label">Email Address</div><div class="value">${app.user_email || "N/A"}</div></div>
+      <div class="info-box"><div class="label">Phone / WhatsApp</div><div class="value">${app.user_phone || "N/A"}</div></div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">Application Details</div>
+    <div class="section-title">2. Service & Payment Information</div>
     <div class="grid-3">
-      <div class="info-box"><div class="label">Category</div><div class="value">${catLabel}</div></div>
+      <div class="info-box"><div class="label">Service Category</div><div class="value">${catLabel}</div></div>
+      <div class="info-box"><div class="label">Total Service Fee</div><div class="value">PKR ${(Number(app.amount) || 1500).toLocaleString()}</div></div>
       <div class="info-box"><div class="label">Payment Method</div><div class="value">${app.payment_method || "N/A"}</div></div>
-      <div class="info-box"><div class="label">Amount</div><div class="value">Rs ${app.amount}</div></div>
-      <div class="info-box"><div class="label">Payment Status</div><div class="value">${(app.payment_status || "pending").toUpperCase()}</div></div>
-      <div class="info-box"><div class="label">Status</div><div class="value">${STATUS_LABELS[app.status] || app.status}</div></div>
-      <div class="info-box"><div class="label">Submitted</div><div class="value">${date}</div></div>
+      <div class="info-box"><div class="label">Payment Status</div><div class="value" style="color:${app.payment_status === 'verified' ? '#166534' : '#92400e'};">${(app.payment_status || "pending").toUpperCase()}</div></div>
+      <div class="info-box"><div class="label">Application Status</div><div class="value" style="color:#0056A8;">${STATUS_LABELS[app.status] || app.status}</div></div>
+      <div class="info-box"><div class="label">Submission Date</div><div class="value">${date}</div></div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">Uploaded Documents</div>
-    <div class="docs">
-      ${app.cnic_front_url ? `<div class="doc-card"><img src="${window.location.origin}${app.cnic_front_url}" alt="CNIC Front"/><div class="doc-label">CNIC Front</div></div>` : ""}
-      ${app.cnic_back_url ? `<div class="doc-card"><img src="${window.location.origin}${app.cnic_back_url}" alt="CNIC Back"/><div class="doc-label">CNIC Back</div></div>` : ""}
-      ${app.selfie_url ? `<div class="doc-card"><img src="${window.location.origin}${app.selfie_url}" alt="Selfie"/><div class="doc-label">Selfie</div></div>` : ""}
-      ${app.payment_proof_url ? `<div class="doc-card"><img src="${window.location.origin}${app.payment_proof_url}" alt="Payment Proof"/><div class="doc-label">Payment Proof</div></div>` : ""}
+    <div class="section-title">3. Official Verification Documents (High Resolution)</div>
+    
+    <!-- Row 1: CNIC Front & Back -->
+    <div class="docs-row">
+      <div class="doc-container">
+        <div class="doc-header"><span>CNIC FRONT (NATIONAL ID)</span><span>OFFICIAL ID</span></div>
+        <div class="doc-img-wrap">
+          ${app.cnic_front_url ? `<img src="${origin}${app.cnic_front_url}" alt="CNIC Front"/>` : `<div class="doc-empty">No CNIC Front Uploaded</div>`}
+        </div>
+        ${app.cnic_front_url ? `<div class="doc-footer"><a href="${origin}${app.cnic_front_url}" target="_blank">View Full Resolution Image &nearr;</a></div>` : ''}
+      </div>
+
+      <div class="doc-container">
+        <div class="doc-header"><span>CNIC BACK (RESIDENTIAL & EXPIRY)</span><span>OFFICIAL ID</span></div>
+        <div class="doc-img-wrap">
+          ${app.cnic_back_url ? `<img src="${origin}${app.cnic_back_url}" alt="CNIC Back"/>` : `<div class="doc-empty">No CNIC Back Uploaded</div>`}
+        </div>
+        ${app.cnic_back_url ? `<div class="doc-footer"><a href="${origin}${app.cnic_back_url}" target="_blank">View Full Resolution Image &nearr;</a></div>` : ''}
+      </div>
+    </div>
+
+    <!-- Row 2: Applicant Photo & Payment Proof -->
+    <div class="docs-row">
+      <div class="doc-container">
+        <div class="doc-header"><span>APPLICANT PHOTO / SELFIE</span><span>BIOMETRIC</span></div>
+        <div class="doc-img-selfie">
+          ${app.selfie_url ? `<img src="${origin}${app.selfie_url}" alt="Applicant Photo"/>` : `<div class="doc-empty">No Photo Uploaded</div>`}
+        </div>
+        ${app.selfie_url ? `<div class="doc-footer"><a href="${origin}${app.selfie_url}" target="_blank">View Full Resolution Image &nearr;</a></div>` : ''}
+      </div>
+
+      <div class="doc-container">
+        <div class="doc-header"><span>PAYMENT RECEIPT / PROOF</span><span>FINANCIAL</span></div>
+        <div class="doc-img-wrap">
+          ${app.payment_proof_url ? `<img src="${origin}${app.payment_proof_url}" alt="Payment Receipt"/>` : `<div class="doc-empty">No Receipt Uploaded</div>`}
+        </div>
+        ${app.payment_proof_url ? `<div class="doc-footer"><a href="${origin}${app.payment_proof_url}" target="_blank">View Full Resolution Image &nearr;</a></div>` : ''}
+      </div>
     </div>
   </div>
-
-  ${app.admin_file_url ? `<div class="section">
-    <div class="section-title">Completed Document</div>
-    <div class="info-box"><div class="value"><a href="${window.location.origin}${app.admin_file_url}" target="_blank">${window.location.origin}${app.admin_file_url}</a></div></div>
-  </div>` : ""}
 
   ${app.admin_notes ? `<div class="section">
-    <div class="section-title">Admin Notes</div>
-    <div class="info-box"><div class="value" style="font-weight:normal;">${app.admin_notes}</div></div>
+    <div class="section-title">4. Consultant Assessment & Internal Notes</div>
+    <div class="info-box"><div class="value" style="font-weight:500;line-height:1.6;color:#334155;">${app.admin_notes}</div></div>
   </div>` : ""}
 
-  <div class="footer">Generated on ${new Date().toLocaleString()} by DIGITAX Admin Panel</div>
+  <div class="stamp-box">
+    <div>
+      <div class="stamp-text">DIGITAX CONSULTANCY SERVICES (PVT) LIMITED</div>
+      <div class="stamp-sub">FBR Certified Tax Practitioners, Corporate Advisors & Legal Filing Specialists</div>
+    </div>
+    <div class="stamp-verified">VERIFIED & AUDITED &check;</div>
+  </div>
+
+  <div class="footer">
+    Official Audit Verification Report &bull; DIGITAX System &bull; Generated on ${new Date().toLocaleString()} &bull; info@digitax.pk &bull; +92 349 1887803
+  </div>
 </body></html>`);
   w.document.close();
 }
@@ -174,6 +250,25 @@ export default function AdminApplications() {
     setEditStatus(app.status);
     setEditPayment(app.payment_status);
     setEditNotes(app.admin_notes || "");
+  };
+
+  const handleDelete = async (id, name) => {
+    const displayId = formatAppId(id);
+    if (!confirm(`Are you sure you want to delete Application ${displayId} (${name || 'Client'})? This action will remove the application from active records.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/applications?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        if (selected?.id === id) setSelected(null);
+        fetchApps();
+      } else {
+        alert(data.error || "Failed to delete application.");
+      }
+    } catch(err) {
+      alert("Error deleting application.");
+    }
   };
 
   const handleSave = async () => {
@@ -227,11 +322,13 @@ export default function AdminApplications() {
     if (filterStatus !== "all" && app.status !== filterStatus) return false;
     if (search) {
       const q = search.toLowerCase();
+      const displayId = String(formatAppId(app.id)).toLowerCase();
       return (
         app.user_name?.toLowerCase().includes(q) ||
         app.user_cnic?.includes(q) ||
         app.user_email?.toLowerCase().includes(q) ||
         app.category?.toLowerCase().includes(q) ||
+        displayId.includes(q) ||
         String(app.id).includes(q)
       );
     }
@@ -256,7 +353,7 @@ export default function AdminApplications() {
       <div className="flex flex-col sm:flex-row gap-3">
         <input
           type="text"
-          placeholder="Search by name, CNIC, email..."
+          placeholder="Search by ID (#2192), name, CNIC, email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-primary"
@@ -279,42 +376,79 @@ export default function AdminApplications() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left text-xs font-bold text-text-secondary px-5 py-3">Sr</th>
+                <th className="text-left text-xs font-bold text-text-secondary px-5 py-3">App ID</th>
                 <th className="text-left text-xs font-bold text-text-secondary px-5 py-3">Customer</th>
                 <th className="text-left text-xs font-bold text-text-secondary px-5 py-3">CNIC</th>
                 <th className="text-left text-xs font-bold text-text-secondary px-5 py-3">Category</th>
                 <th className="text-left text-xs font-bold text-text-secondary px-5 py-3">Payment</th>
                 <th className="text-left text-xs font-bold text-text-secondary px-5 py-3">Status</th>
                 <th className="text-left text-xs font-bold text-text-secondary px-5 py-3">Date</th>
+                <th className="text-right text-xs font-bold text-text-secondary px-5 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-sm text-text-secondary">No applications found.</td></tr>
-              ) : filtered.map((app, i) => (
+                <tr><td colSpan={8} className="text-center py-12 text-sm text-text-secondary">No applications found.</td></tr>
+              ) : filtered.map((app) => (
                 <tr
                   key={app.id}
-                  onClick={() => openDetail(app)}
-                  className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors"
                 >
-                  <td className="px-5 py-3 text-sm font-bold text-text-primary">{i + 1}</td>
+                  <td className="px-5 py-3 text-sm font-bold text-primary font-mono">{formatAppId(app.id)}</td>
                   <td className="px-5 py-3">
-                    <p className="text-sm font-medium text-text-primary">{app.user_name || "N/A"}</p>
+                    <p className="text-sm font-semibold text-text-primary">{app.user_name || "N/A"}</p>
                     <p className="text-xs text-text-secondary">{app.user_email}</p>
                   </td>
                   <td className="px-5 py-3 text-sm text-text-secondary font-mono">{app.user_cnic || "N/A"}</td>
-                  <td className="px-5 py-3 text-sm text-text-primary capitalize">{app.category}</td>
+                  <td className="px-5 py-3 text-sm text-text-primary capitalize font-medium">{app.category}</td>
                   <td className="px-5 py-3">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${PAYMENT_COLORS[app.payment_status] || "bg-gray-100"}`}>
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${PAYMENT_COLORS[app.payment_status] || "bg-gray-100"}`}>
                       {app.payment_status}
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_COLORS[app.status] || "bg-gray-100"}`}>
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${STATUS_COLORS[app.status] || "bg-gray-100"}`}>
                       {STATUS_LABELS[app.status] || app.status}
                     </span>
                   </td>
                   <td className="px-5 py-3 text-xs text-text-secondary">{new Date(app.created_at).toLocaleDateString()}</td>
+                  <td className="px-5 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                      {/* Eye View Button */}
+                      <button
+                        onClick={() => openDetail(app)}
+                        className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all cursor-pointer shadow-xs"
+                        title="View Details"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+
+                      {/* PDF Report Button */}
+                      <button
+                        onClick={() => exportPDF(app)}
+                        className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white transition-all cursor-pointer shadow-xs"
+                        title="Print / Official PDF"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </button>
+
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleDelete(app.id, app.user_name)}
+                        className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all cursor-pointer shadow-xs"
+                        title="Delete Application"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -392,7 +526,7 @@ export default function AdminApplications() {
                   {selected.cnic_front_url && (
                     <div className="flex flex-col">
                       <div className="relative bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                        <img src={selected.cnic_front_url} alt="CNIC Front" className="w-full aspect-[1.586/1] object-cover" />
+                        <img src={selected.cnic_front_url} alt="CNIC Front" className="w-full object-contain" style={{aspectRatio:'1.586/1', background:'#f8fafc'}} />
                         <button onClick={() => setLightbox({url: selected.cnic_front_url, title: 'CNIC Front'})} className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-all flex items-center justify-center opacity-0 hover:opacity-100 cursor-pointer">
                           <span className="bg-white text-primary font-bold text-xs px-3 py-1.5 rounded-lg shadow">View Full</span>
                         </button>
@@ -403,7 +537,7 @@ export default function AdminApplications() {
                   {selected.cnic_back_url && (
                     <div className="flex flex-col">
                       <div className="relative bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                        <img src={selected.cnic_back_url} alt="CNIC Back" className="w-full aspect-[1.586/1] object-cover" />
+                        <img src={selected.cnic_back_url} alt="CNIC Back" className="w-full object-contain" style={{aspectRatio:'1.586/1', background:'#f8fafc'}} />
                         <button onClick={() => setLightbox({url: selected.cnic_back_url, title: 'CNIC Back'})} className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-all flex items-center justify-center opacity-0 hover:opacity-100 cursor-pointer">
                           <span className="bg-white text-primary font-bold text-xs px-3 py-1.5 rounded-lg shadow">View Full</span>
                         </button>
@@ -414,7 +548,7 @@ export default function AdminApplications() {
                   {selected.selfie_url && (
                     <div className="flex flex-col">
                       <div className="relative bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                        <img src={selected.selfie_url} alt="Selfie" className="w-full aspect-square object-cover" />
+                        <img src={selected.selfie_url} alt="Selfie" className="w-full object-contain" style={{aspectRatio:'3/4', background:'#f8fafc'}} />
                         <button onClick={() => setLightbox({url: selected.selfie_url, title: 'Selfie'})} className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-all flex items-center justify-center opacity-0 hover:opacity-100 cursor-pointer">
                           <span className="bg-white text-primary font-bold text-xs px-3 py-1.5 rounded-lg shadow">View Full</span>
                         </button>
@@ -532,11 +666,11 @@ export default function AdminApplications() {
                   </label>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex-1 bg-primary text-white font-bold py-3 rounded-xl text-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                    className="flex-1 min-w-[140px] bg-primary text-white font-bold py-3 rounded-xl text-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
                   >
                     {saving ? (
                       <>
@@ -547,10 +681,18 @@ export default function AdminApplications() {
                   </button>
                   <button
                     onClick={() => exportPDF(selected)}
-                    className="bg-gray-100 text-text-primary font-bold py-3 px-5 rounded-xl text-sm hover:bg-gray-200 transition-all cursor-pointer flex items-center gap-2"
+                    className="bg-emerald-50 text-emerald-800 font-bold py-3 px-5 rounded-xl text-sm hover:bg-emerald-100 transition-all cursor-pointer flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    PDF
+                    Print / PDF
+                  </button>
+                  <button
+                    onClick={() => handleDelete(selected.id, selected.user_name)}
+                    className="bg-rose-50 text-rose-600 font-bold py-3 px-4 rounded-xl text-sm hover:bg-rose-600 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+                    title="Delete Application"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Delete
                   </button>
                 </div>
               </div>

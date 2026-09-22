@@ -7,17 +7,17 @@ const serviceCards = [
     id: "personal-tax",
     title: "Personal Tax Filing",
     icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-    color: "from-red-500 to-red-600",
-    bgColor: "bg-red-50",
+    color: "from-[#0056A8] to-[#0077cc]",
+    bgColor: "bg-blue-50/80",
     link: "/portal/personal-tax",
-    available: false
+    available: true
   },
   {
     id: "family-tax",
     title: "Family Tax Filing",
     icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
-    color: "from-blue-500 to-red-500",
-    bgColor: "bg-blue-50",
+    color: "from-[#0056A8] to-[#1e40af]",
+    bgColor: "bg-blue-50/80",
     link: "/portal/family-tax",
     available: true
   },
@@ -25,8 +25,8 @@ const serviceCards = [
     id: "ntn-registration",
     title: "NTN Registration",
     icon: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z",
-    color: "from-red-500 to-blue-500",
-    bgColor: "bg-red-50",
+    color: "from-[#0284c7] to-[#0056A8]",
+    bgColor: "bg-sky-50/80",
     link: "/portal/ntn-registration",
     available: true
   },
@@ -34,73 +34,73 @@ const serviceCards = [
     id: "iris-profile",
     title: "IRIS Profile Update",
     icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
-    color: "from-red-500 to-blue-600",
-    bgColor: "bg-red-50",
+    color: "from-[#0369a1] to-[#0284c7]",
+    bgColor: "bg-cyan-50/80",
     link: "/portal/iris-profile",
-    available: false
+    available: true
   },
   {
     id: "business-incorporation",
     title: "Business Incorporation",
     icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
-    color: "from-blue-500 to-red-500",
-    bgColor: "bg-blue-50",
-    link: "/portal/business-incorporation",
-    available: false
+    color: "from-[#1e3a8a] to-[#0056A8]",
+    bgColor: "bg-blue-50/80",
+    link: "/portal/business-registration",
+    available: true
   },
   {
     id: "gst-registration",
     title: "GST Registration",
     icon: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z",
-    color: "from-red-500 to-blue-500",
-    bgColor: "bg-red-50",
+    color: "from-[#0f766e] to-[#0056A8]",
+    bgColor: "bg-teal-50/80",
     link: "/portal/gst-registration",
-    available: false
+    available: true
   },
   {
     id: "service-charges",
     title: "Service Charges",
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01",
-    color: "from-blue-500 to-red-500",
-    bgColor: "bg-blue-50",
+    color: "from-[#0056A8] to-[#0284c7]",
+    bgColor: "bg-blue-50/80",
     link: "/portal/service-charges",
-    available: false
+    available: true
   },
   {
     id: "salary-calculator",
     title: "Salary Tax Calculator",
     icon: "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z",
-    color: "from-blue-600 to-red-500",
-    bgColor: "bg-blue-50",
-    link: "/#tax-tool",
+    color: "from-[#0056A8] to-[#2563eb]",
+    bgColor: "bg-blue-50/80",
+    link: "/tools/salary-tax-calculator",
     available: true
   },
   {
     id: "faq",
     title: "FAQ",
     icon: "M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-    color: "from-pink-500 to-pink-600",
-    bgColor: "bg-pink-50",
+    color: "from-[#334155] to-[#475569]",
+    bgColor: "bg-slate-50/80",
     link: "/portal/faq",
-    available: false
+    available: true
   },
   {
     id: "blog-updates",
     title: "Blog & Updates",
     icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
-    color: "from-red-500 to-orange-500",
-    bgColor: "bg-red-50",
+    color: "from-[#0369a1] to-[#0056A8]",
+    bgColor: "bg-sky-50/80",
     link: "/portal/blog-updates",
-    available: false
+    available: true
   },
   {
     id: "videos",
     title: "Videos",
     icon: "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z",
-    color: "from-red-500 to-red-600",
-    bgColor: "bg-red-50",
+    color: "from-[#0056A8] to-[#1e3a8a]",
+    bgColor: "bg-blue-50/80",
     link: "/portal/videos",
-    available: false
+    available: true
   }
 ];
 

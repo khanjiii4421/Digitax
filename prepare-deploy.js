@@ -33,6 +33,14 @@ try {
     console.log('✅ Static assets copied.');
   }
 
+  // 3b. Copy .htaccess for Apache / cPanel security
+  const htaccessSrc = path.join(rootDir, '.htaccess');
+  const htaccessDest = path.join(standaloneDir, '.htaccess');
+  if (fs.existsSync(htaccessSrc)) {
+    fs.copyFileSync(htaccessSrc, htaccessDest);
+    console.log('✅ .htaccess copied.');
+  }
+
   // 4. Patch server.js in standalone to handle Unix sockets / named pipes (process.env.PORT)
   const serverJsPath = path.join(standaloneDir, 'server.js');
   if (fs.existsSync(serverJsPath)) {
@@ -62,8 +70,18 @@ try {
   }
 
   // Run PowerShell command to zip the standalone folder contents
-  // We list individual items to ensure hidden folders (like .next) are zipped correctly without inclusion issues
-  const zipCmd = `powershell -Command "Compress-Archive -Path '${path.join(standaloneDir, 'node_modules')}', '${path.join(standaloneDir, '.next')}', '${path.join(standaloneDir, 'public')}', '${path.join(standaloneDir, 'package.json')}', '${path.join(standaloneDir, 'server.js')}' -DestinationPath '${zipPath}' -Force"`;
+  const zipItems = [
+    `'${path.join(standaloneDir, 'node_modules')}'`,
+    `'${path.join(standaloneDir, '.next')}'`,
+    `'${path.join(standaloneDir, 'public')}'`,
+    `'${path.join(standaloneDir, 'package.json')}'`,
+    `'${path.join(standaloneDir, 'server.js')}'`,
+  ];
+  if (fs.existsSync(htaccessDest)) {
+    zipItems.push(`'${htaccessDest}'`);
+  }
+
+  const zipCmd = `powershell -Command "Compress-Archive -Path ${zipItems.join(', ')} -DestinationPath '${zipPath}' -Force"`;
   
   execSync(zipCmd, { stdio: 'inherit' });
   console.log(`🎉 Success! Your deployment file is ready: ${zipPath}`);

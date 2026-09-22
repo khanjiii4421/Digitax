@@ -1,7 +1,10 @@
 import Header from "@/components/Header";
 import AnnouncementBar from "@/components/AnnouncementBar";
 import Hero from "@/components/sections/Hero";
+import TrustBadges from "@/components/sections/TrustBadges";
+import HowItWorks from "@/components/sections/HowItWorks";
 import TaxCalculator from "@/components/sections/TaxCalculator";
+import PromoPopup from "@/components/PromoPopup";
 import Partners from "@/components/sections/Partners";
 import PopularProducts from "@/components/sections/PopularProducts";
 import WaveAnimation from "@/components/sections/WaveAnimation";
@@ -11,6 +14,7 @@ import FeaturedVideos from "@/components/sections/FeaturedVideos";
 import BlogPosts from "@/components/sections/BlogPosts";
 import QueryForm from "@/components/sections/QueryForm";
 import Footer from "@/components/Footer";
+import PromotionalBanners from "@/components/sections/PromotionalBanners";
 import db from "@/lib/db";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
@@ -44,9 +48,12 @@ export default async function Home() {
       <AnnouncementBar settings={settings} />
       <Header logoUrl={siteLogo} initialUser={user} settings={settings} />
       <Hero settings={settings} user={user} />
+      <TrustBadges />
+      <HowItWorks />
       <TaxCalculator slabs={taxSlabs} />
       <Partners partners={partners} />
       <PopularProducts products={products} user={user} />
+      <PromotionalBanners />
       <Testimonials testimonials={testimonials} />
       <WaveAnimation />
       <Team team={team} settings={settings} />
@@ -54,6 +61,7 @@ export default async function Home() {
       <BlogPosts blogs={blogs} />
       <QueryForm />
       <Footer settings={settings} />
+      <PromoPopup settings={settings} />
     </main>
   );
 }

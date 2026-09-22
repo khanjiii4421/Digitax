@@ -3,6 +3,32 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
+// Map sidebar page keys to their paths
+const PAGE_KEYS = {
+  dashboard: '/admin',
+  service_pricing: '/admin/service-pricing',
+  ntn_applications: '/admin/applications',
+  family_tax: '/admin/family-tax',
+  documents: '/admin/documents',
+  coupons: '/admin/coupons',
+  payment_methods: '/admin/payment-methods',
+  faqs: '/admin/faqs',
+  website_control: '/admin/website-control',
+  audit_logs: '/admin/audit-logs',
+  subadmins: '/admin/subadmins',
+  leads: '/admin/leads',
+  settings: '/admin/settings',
+  queries: '/admin/queries',
+};
+
+function hasAccess(user, pageKey) {
+  if (!user) return false;
+  if (user.role === 'admin') return true; // Super Admin: full access
+  // Sub-admin: check permissions array
+  const perms = Array.isArray(user.permissions) ? user.permissions : [];
+  return perms.includes(pageKey);
+}
+
 export default function AdminLayout({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,12 +43,18 @@ export default function AdminLayout({ children }) {
   const [currentTab, setCurrentTab] = useState("");
   const [expandedGroups, setExpandedGroups] = useState({});
 
+  // Change password modal state
+  const [showChangePwd, setShowChangePwd] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ current: '', newPwd: '', confirm: '' });
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [pwdSaving, setPwdSaving] = useState(false);
+
   // Auto-expand the group that contains the active page
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       setCurrentTab(params.get("tab") || "");
-      // Auto-expand matching group
       const tab = params.get("tab") || "";
       if (pathname === "/admin/settings") {
         const contentTabs = ["brand","hero","about","team","testimonials","products","services","partners","videos","queries","uploads","contact","footer"];
@@ -39,8 +71,14 @@ export default function AdminLayout({ children }) {
     fetch("/api/admin/auth/me")
       .then(res => res.json())
       .then(resData => {
-        if (resData.success && resData.data?.user && resData.data.user.role === 'admin') {
-          setUser(resData.data.user);
+        if (resData.success && resData.data?.user && (resData.data.user.role === 'admin' || resData.data.user.role === 'subadmin')) {
+          const u = resData.data.user;
+          // Parse permissions if string
+          if (typeof u.permissions === 'string') {
+            try { u.permissions = JSON.parse(u.permissions); } catch { u.permissions = u.permissions.split(',').map(s => s.trim()).filter(Boolean); }
+          }
+          if (!Array.isArray(u.permissions)) u.permissions = [];
+          setUser(u);
         } else {
           if (pathname !== '/admin' && pathname !== '/admin/') {
             window.location.href = '/admin';
@@ -70,11 +108,9 @@ export default function AdminLayout({ children }) {
           const prevUnread = unreadCount;
           setNotifications(data.notifications || []);
           setUnreadCount(data.unreadCount || 0);
-          // Show toast for new notifications
           if (data.unreadCount > prevUnread && prevUnread >= 0) {
             const newNotifs = (data.notifications || []).filter(n => !n.is_read).slice(0, 1);
             if (newNotifs.length > 0 && typeof window !== 'undefined') {
-              // Browser notification
               if (Notification.permission === 'granted') {
                 new Notification(newNotifs[0].title, { body: newNotifs[0].message });
               }
@@ -87,7 +123,6 @@ export default function AdminLayout({ children }) {
 
   useEffect(() => {
     if (!user) return;
-    // Request notification permission
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
@@ -109,6 +144,31 @@ export default function AdminLayout({ children }) {
     window.location.href = '/admin';
   };
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwdError('');
+    setPwdSuccess('');
+    if (!pwdForm.newPwd || pwdForm.newPwd.length < 8) { setPwdError('New password must be at least 8 characters.'); return; }
+    if (pwdForm.newPwd !== pwdForm.confirm) { setPwdError('Passwords do not match.'); return; }
+    setPwdSaving(true);
+    try {
+      const res = await fetch('/api/admin/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: pwdForm.current, newPassword: pwdForm.newPwd })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPwdSuccess('Password changed successfully!');
+        setPwdForm({ current: '', newPwd: '', confirm: '' });
+        setTimeout(() => { setShowChangePwd(false); setPwdSuccess(''); }, 2000);
+      } else {
+        setPwdError(data.message || 'Failed to change password.');
+      }
+    } catch { setPwdError('Server error. Please try again.'); }
+    setPwdSaving(false);
+  };
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -122,14 +182,31 @@ export default function AdminLayout({ children }) {
     return null;
   }
 
-  // Accordion menu groups
+  const isSubAdmin = user.role === 'subadmin';
+
+  // Determine if current page is accessible
+  const currentPageKey = Object.entries(PAGE_KEYS).find(([, path]) => {
+    if (path === '/admin') return pathname === '/admin' || pathname === '/admin/';
+    return pathname.startsWith(path);
+  })?.[0];
+
+  const isCurrentPageRestricted = currentPageKey && !hasAccess(user, currentPageKey);
+
+  // All sidebar items with their page keys
   const standaloneItems = [
-    { name: 'Dashboard', path: '/admin', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-    { name: 'NTN Applications', path: '/admin/applications', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    { name: 'Family Tax Filings', path: '/admin/family-tax', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-    { name: 'All Documents', path: '/admin/documents', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    { name: 'Discount Coupons', path: '/admin/coupons', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
-    { name: 'Payment Methods', path: '/admin/payment-methods', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
+    { name: 'Dashboard', path: '/admin', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', pageKey: 'dashboard' },
+    { name: 'Service Rates', path: '/admin/service-pricing', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', pageKey: 'service_pricing' },
+    { name: 'NTN Applications', path: '/admin/applications', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', pageKey: 'ntn_applications' },
+    { name: 'Family Tax Filings', path: '/admin/family-tax', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', pageKey: 'family_tax' },
+    { name: 'All Documents', path: '/admin/documents', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', pageKey: 'documents' },
+    { name: 'Clients & Leads', path: '/admin/leads', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', pageKey: 'leads' },
+    { name: 'Discount Coupons', path: '/admin/coupons', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z', pageKey: 'coupons' },
+    { name: 'Payment Methods', path: '/admin/payment-methods', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', pageKey: 'payment_methods' },
+    { name: 'FAQs Management', path: '/admin/faqs', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', pageKey: 'faqs' },
+    { name: 'Website Mode', path: '/admin/website-control', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', pageKey: 'website_control' },
+    { name: 'Audit Logs', path: '/admin/audit-logs', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', pageKey: 'audit_logs' },
+    // Super Admin only
+    ...(!isSubAdmin ? [{ name: 'Sub-Admin Accounts', path: '/admin/subadmins', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', pageKey: 'subadmins' }] : []),
   ];
 
   const menuGroups = [
@@ -137,8 +214,10 @@ export default function AdminLayout({ children }) {
       id: 'content',
       label: 'Content / Main Page',
       icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+      pageKey: 'settings',
       children: [
         { name: 'Brand & Identity', path: '/admin/settings', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+        { name: 'Promo Popup', path: '/admin/settings?tab=promo', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
         { name: 'Hero Section', path: '/admin/settings?tab=hero', icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z' },
         { name: 'About', path: '/admin/settings?tab=about', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
         { name: 'Services', path: '/admin/settings?tab=services', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
@@ -155,6 +234,7 @@ export default function AdminLayout({ children }) {
       id: 'tools',
       label: 'Tools',
       icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
+      pageKey: 'settings',
       children: [
         { name: 'Tax Slabs', path: '/admin/settings?tab=tax-slabs', icon: 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
         { name: 'Queries', path: '/admin/settings?tab=queries', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z' },
@@ -165,6 +245,7 @@ export default function AdminLayout({ children }) {
       id: 'advanced',
       label: 'Advanced',
       icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
+      pageKey: 'settings',
       children: [
         { name: 'SEO', path: '/admin/settings?tab=seo', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
         { name: 'Page Visibility', path: '/admin/settings?tab=coming-soon', icon: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
@@ -176,12 +257,34 @@ export default function AdminLayout({ children }) {
   const toggleGroup = (groupId) => {
     setExpandedGroups(prev => {
       const newState = {};
-      // Close all other groups (accordion behavior)
       Object.keys(prev).forEach(k => { newState[k] = false; });
       newState[groupId] = !prev[groupId];
       return newState;
     });
   };
+
+  // Filter standaloneItems: subadmin only sees what they have access to
+  const visibleStandaloneItems = standaloneItems.filter(item => hasAccess(user, item.pageKey));
+  // Filter menuGroups: only show if user has access to 'settings' key
+  const visibleMenuGroups = menuGroups.filter(g => hasAccess(user, g.pageKey));
+
+  const AccessRestrictedView = () => (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center max-w-md">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-3">Access Restricted</h2>
+        <p className="text-gray-500 text-base mb-6">You don't have permission to access this page. Please contact your Super Administrator to request access.</p>
+        <a href="/admin" className="inline-flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+          Back to Dashboard
+        </a>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex bg-gray-50 font-body relative overflow-x-hidden">
@@ -192,6 +295,44 @@ export default function AdminLayout({ children }) {
         />
       )}
 
+      {/* Change Password Modal */}
+      {showChangePwd && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gradient-to-r from-primary to-blue-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold">Change Password</h3>
+                  <p className="text-blue-100 text-sm mt-1">Keep your account secure</p>
+                </div>
+                <button onClick={() => { setShowChangePwd(false); setPwdError(''); setPwdSuccess(''); }} className="p-2 rounded-lg hover:bg-white/20 transition-colors cursor-pointer">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+            <form onSubmit={handleChangePassword} className="p-6 space-y-4">
+              {pwdError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-xl px-4 py-3">{pwdError}</div>}
+              {pwdSuccess && <div className="bg-green-50 border border-green-200 text-green-700 text-sm font-medium rounded-xl px-4 py-3">✅ {pwdSuccess}</div>}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Current Password</label>
+                <input type="password" value={pwdForm.current} onChange={e => setPwdForm(p => ({ ...p, current: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" placeholder="Enter current password" required />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">New Password</label>
+                <input type="password" value={pwdForm.newPwd} onChange={e => setPwdForm(p => ({ ...p, newPwd: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" placeholder="Min. 8 characters" required />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm New Password</label>
+                <input type="password" value={pwdForm.confirm} onChange={e => setPwdForm(p => ({ ...p, confirm: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" placeholder="Repeat new password" required />
+              </div>
+              <button type="submit" disabled={pwdSaving} className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-60 cursor-pointer mt-2">
+                {pwdSaving ? 'Changing...' : 'Change Password'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <aside className={`bg-white border-r border-premium shadow-sm flex flex-col fixed md:sticky top-0 h-screen overflow-y-auto z-50 transform transition-all duration-300 ease-in-out ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
       } md:translate-x-0 ${isCollapsed ? 'w-20' : 'w-64'}`}>
@@ -199,7 +340,9 @@ export default function AdminLayout({ children }) {
           <div className="flex items-center cursor-pointer overflow-hidden" onClick={() => window.location.href = '/'}>
             <span className="font-heading font-bold text-xl text-primary tracking-tight shrink-0">DIGITAX</span>
             {!isCollapsed && (
-              <span className="ml-2 text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">Admin</span>
+              <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0 ${isSubAdmin ? 'bg-amber-100 text-amber-700' : 'bg-primary/10 text-primary'}`}>
+                {isSubAdmin ? 'Sub-Admin' : 'Admin'}
+              </span>
             )}
           </div>
           <button className="md:hidden text-text-secondary" onClick={() => setIsSidebarOpen(false)}>
@@ -209,7 +352,7 @@ export default function AdminLayout({ children }) {
         
         <nav className="flex-1 py-4 flex flex-col gap-0.5 px-3">
           {/* Standalone items */}
-          {standaloneItems.map((item) => {
+          {visibleStandaloneItems.map((item) => {
             const isActive = pathname === item.path && currentTab === "";
             return (
               <a
@@ -232,7 +375,7 @@ export default function AdminLayout({ children }) {
           })}
 
           {/* Accordion Groups */}
-          {menuGroups.map((group) => {
+          {visibleMenuGroups.map((group) => {
             const isExpanded = expandedGroups[group.id];
             const isChildActive = group.children.some(child => {
               if (child.path === "/admin/settings") {
@@ -246,11 +389,9 @@ export default function AdminLayout({ children }) {
 
             return (
               <div key={group.id} className="mt-1">
-                {/* Group Header */}
                 <button
                   onClick={() => {
                     if (isCollapsed) {
-                      // When collapsed, navigate to first child
                       window.location.href = group.children[0].path;
                     } else {
                       toggleGroup(group.id);
@@ -276,7 +417,6 @@ export default function AdminLayout({ children }) {
                   )}
                 </button>
 
-                {/* Children with smooth animation */}
                 {!isCollapsed && (
                   <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
                     isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
@@ -348,7 +488,12 @@ export default function AdminLayout({ children }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h12M4 18h8" />
               </svg>
             </button>
-            <h2 className="font-bold text-lg text-text-primary hidden sm:block">Admin Panel</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-lg text-text-primary hidden sm:block">Admin Panel</h2>
+              {isSubAdmin && (
+                <span className="hidden sm:inline-block text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Sub-Admin</span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-4 relative">
@@ -400,14 +545,24 @@ export default function AdminLayout({ children }) {
               </button>
 
               {showProfileMenu && (
-                <div className="absolute right-0 top-12 w-48 bg-white border border-premium shadow-xl rounded-2xl p-2 z-50">
+                <div className="absolute right-0 top-12 w-52 bg-white border border-premium shadow-xl rounded-2xl p-2 z-50">
                   <div className="px-3 py-2 border-b border-premium text-xs">
                     <p className="font-bold text-text-primary truncate">{user.name}</p>
                     <p className="text-text-secondary truncate">{user.email}</p>
+                    <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${isSubAdmin ? 'bg-amber-100 text-amber-700' : 'bg-primary/10 text-primary'}`}>
+                      {isSubAdmin ? 'Sub-Admin' : 'Super Admin'}
+                    </span>
                   </div>
                   <button 
+                    onClick={() => { setShowProfileMenu(false); setShowChangePwd(true); }}
+                    className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2 mt-1 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                    Change Password
+                  </button>
+                  <button 
                     onClick={handleLogout}
-                    className="w-full text-left px-3 py-2 text-sm text-error hover:bg-error/5 rounded-lg transition-colors flex items-center gap-2 mt-1 cursor-pointer"
+                    className="w-full text-left px-3 py-2 text-sm text-error hover:bg-error/5 rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     Logout
@@ -419,7 +574,7 @@ export default function AdminLayout({ children }) {
         </header>
         
         <div className="p-4 md:p-8 flex-1 overflow-auto">
-          {children}
+          {isCurrentPageRestricted ? <AccessRestrictedView /> : children}
         </div>
       </main>
     </div>

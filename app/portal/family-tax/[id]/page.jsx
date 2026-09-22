@@ -109,9 +109,40 @@ export default function ApplicationDetailPage({ params }) {
     window.print();
   };
 
-  if (loading) return <div className="p-10 text-center text-primary font-bold">Loading application details...</div>;
-  if (error) return <div className="p-10 text-center text-red-500 font-bold">{error}</div>;
-  if (!appData) return null;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-4">
+      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-sm font-medium text-text-secondary">Loading application details...</p>
+    </div>
+  );
+
+  if (error || !appData) return (
+    <div className="max-w-xl mx-auto my-12 bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center anim-fade-in">
+      <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <h2 className="text-xl font-bold text-text-primary mb-2">Application Not Found</h2>
+      <p className="text-text-secondary text-sm mb-6">
+        {error || "The application you are trying to view does not exist or may have been removed."}
+      </p>
+      <div className="flex items-center justify-center gap-3">
+        <button
+          onClick={() => router.push('/portal/applications')}
+          className="bg-primary text-white font-bold px-6 py-2.5 rounded-xl text-sm hover:opacity-90 transition-all cursor-pointer"
+        >
+          Back to Applications
+        </button>
+        <button
+          onClick={() => router.push('/portal')}
+          className="border border-gray-200 text-text-secondary font-bold px-6 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-all cursor-pointer"
+        >
+          Portal Dashboard
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-20 anim-fade-in">

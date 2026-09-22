@@ -155,16 +155,19 @@ export default function PopularProducts({ products, user = null }) {
                   {product.description}
                 </p>
                 <button
-                  className="mt-2 py-3 px-6 rounded-full border-2 border-primary text-primary font-semibold group-hover:bg-white group-hover:border-white group-hover:text-primary transition-all duration-200 text-center w-full"
+                  className="mt-2 py-3 px-6 rounded-full border-2 border-primary text-primary font-semibold group-hover:bg-white group-hover:border-white group-hover:text-primary transition-all duration-200 text-center w-full cursor-pointer"
                   onClick={() => {
-                    if (user) {
-                      window.location.href = "/portal";
+                    const target = product.button_link || "/portal";
+                    if (target.startsWith("http")) {
+                      window.location.href = target;
+                    } else if (user) {
+                      window.location.href = target;
                     } else {
-                      window.location.href = "/login";
+                      window.location.href = `/login?redirect=${encodeURIComponent(target)}`;
                     }
                   }}
                 >
-                  {product.button_text}
+                  {product.button_text || "Start Now"}
                 </button>
               </div>
             ))}

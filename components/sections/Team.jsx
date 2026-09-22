@@ -2,6 +2,8 @@
 
 export default function Team({ team, settings = [] }) {
   const sectionTitle = settings.find(s => s.key === "team_title")?.value || "Meet Our Dream Team";
+  const teamTitleImage = settings.find(s => s.key === "team_title_image")?.value;
+  const teamHeadingType = settings.find(s => s.key === "team_heading_type")?.value || (teamTitleImage ? "image" : "text");
   const teamImage = settings.find(s => s.key === "team_section_image")?.value;
 
   const displayTeam =
@@ -11,14 +13,26 @@ export default function Team({ team, settings = [] }) {
 
   return (
     <section className="py-16 md:py-24 bg-white overflow-hidden">
-      {/* Section Title */}
+      {/* Section Title or Heading Picture */}
       <div className="text-center mb-12 md:mb-16">
-        <h2 className="text-section-heading font-heading font-bold text-text-primary tracking-tight">
-          {sectionTitle}
-        </h2>
-        <p className="text-text-secondary text-body-custom mt-3 max-w-xl mx-auto">
-          We have a qualified team of tax consultants, advocates, corporate lawyers, and IT professionals to support you.
-        </p>
+        {teamHeadingType === "image" && teamTitleImage ? (
+          <div className="flex justify-center items-center">
+            <img 
+              src={teamTitleImage} 
+              alt={sectionTitle} 
+              className="max-h-24 md:max-h-36 max-w-[90%] object-contain drop-shadow-sm" 
+            />
+          </div>
+        ) : (
+          <>
+            <h2 className="text-section-heading font-heading font-bold text-text-primary tracking-tight">
+              {sectionTitle}
+            </h2>
+            <p className="text-text-secondary text-body-custom mt-3 max-w-xl mx-auto">
+              We have a qualified team of tax consultants, advocates, corporate lawyers, and IT professionals to support you.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Main Team Banner with Decorative Circles */}
@@ -71,15 +85,15 @@ export default function Team({ team, settings = [] }) {
 
               return (
                 <div key={member.id || index} className="flex flex-col items-center text-center group">
-                  <div className="w-28 h-28 md:w-36 md:h-36 rounded-full overflow-hidden border-4 border-white shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-300 mb-4">
+                  <div className="w-36 sm:w-44 md:w-48 transition-all duration-300 group-hover:-translate-y-1.5 mb-4 flex items-center justify-center">
                     <img 
                       src={photo} 
                       alt={member.name} 
-                      className="w-full h-full object-cover"
+                      className="w-full h-auto object-contain drop-shadow-md group-hover:drop-shadow-xl transition-all duration-300"
                     />
                   </div>
                   <h4 className="font-bold text-text-primary text-sm md:text-base">{member.name}</h4>
-                  <p className="text-text-secondary text-xs md:text-sm mt-0.5">{member.role || "Consultant"}</p>
+                  <p className="text-text-secondary text-xs md:text-sm mt-0.5 font-medium">{member.role || "Consultant"}</p>
                 </div>
               );
             })}

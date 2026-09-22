@@ -1,10 +1,21 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/tadbeer/law-website
-    - /bin/cp -R .next/standalone/* $DEPLOYPATH/
-    - /bin/cp -R .next/static $DEPLOYPATH/.next/static
-    - /bin/cp -R public $DEPLOYPATH/public
+    # Target isolated DIGITAX domain document root
+    - export DEPLOYPATH=/home/tadbeer/domains/digitax.pk/public_html
+    - /bin/mkdir -p $DEPLOYPATH/.next
+    - /bin/mkdir -p $DEPLOYPATH/tmp
+    # Deploy standalone Next.js server and dependencies
+    - if [ -d ".next/standalone" ]; then /bin/cp -R .next/standalone/* $DEPLOYPATH/; fi
+    # Deploy static assets required by Next.js standalone runtime
+    - if [ -d ".next/static" ]; then /bin/cp -R .next/static $DEPLOYPATH/.next/; fi
+    # Deploy public folder (images, uploads, icons)
+    - if [ -d "public" ]; then /bin/cp -R public $DEPLOYPATH/; fi
+    # Deploy startup file, package.json, and Apache security rules
     - /bin/cp server.js $DEPLOYPATH/server.js
     - /bin/cp package.json $DEPLOYPATH/package.json
+    - if [ -f ".htaccess" ]; then /bin/cp .htaccess $DEPLOYPATH/.htaccess; fi
+    # Preserve environment configuration
     - /bin/cp .env* $DEPLOYPATH/ 2>/dev/null || true
+    # Trigger zero-downtime Passenger application restart
+    - /bin/touch $DEPLOYPATH/tmp/restart.txt

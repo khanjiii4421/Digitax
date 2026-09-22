@@ -1,5 +1,5 @@
 import db from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, buildStatusNotificationEmail } from "@/lib/email";
 
 export async function GET() {
   try {
@@ -7,6 +7,7 @@ export async function GET() {
       `SELECT a.*, u.name as user_name, u.email as user_email, u.number as user_phone, u.cnic as user_cnic
        FROM ntn_applications a
        LEFT JOIN users u ON a.user_id = u.id
+       WHERE (a.deleted_at IS NULL OR a.deleted_at = '')
        ORDER BY a.created_at DESC`
     );
 
@@ -26,7 +27,13 @@ export async function PATCH(req) {
       return new Response(JSON.stringify({ success: false, error: "Application ID is required." }), { status: 400 });
     }
 
-    const existing = await db.get("SELECT * FROM ntn_applications a LEFT JOIN users u ON a.user_id = u.id WHERE a.id = ?", [id]);
+    const existing = await db.get(
+      `SELECT a.*, u.name as user_name, u.email as user_email, u.number as user_phone, u.cnic as user_cnic 
+       FROM ntn_applications a 
+       LEFT JOIN users u ON a.user_id = u.id 
+       WHERE a.id = ?`, 
+      [id]
+    );
     if (!existing) {
       return new Response(JSON.stringify({ success: false, error: "Application not found." }), { status: 404 });
     }
@@ -44,22 +51,46 @@ export async function PATCH(req) {
 
     await db.run(`UPDATE ntn_applications SET ${fields.join(", ")} WHERE id = ?`, values);
 
+    const clientEmail = existing.user_email || existing.email;
+    const clientName = existing.user_name || existing.name || "Valued Client";
+    const displayId = '#' + (Number(existing.id) < 2192 ? (2191 + Number(existing.id || 1)) : existing.id);
+    const catLabel = (existing.category || "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "NTN Registration";
+
     // Notify user if admin file was uploaded
     if (admin_file_url !== undefined && admin_file_url) {
       await db.run('INSERT INTO notifications (user_id, title, message, type, link) VALUES (?, ?, ?, ?, ?)', [
         existing.user_id,
-        'Your Document is Ready',
-        'Your completed NTN Registration document has been uploaded. You can download it from Completed Files.',
+        'Your Official Certificate is Ready',
+        'Your completed NTN Certificate / document has been uploaded. You can download it directly from your portal.',
         'application',
         '/portal/completed'
       ]);
-      // Email
-      if (existing.email) {
+      
+      if (clientEmail) {
+        const html = buildStatusNotificationEmail({
+          recipientName: clientName,
+          title: "Your Official Document is Ready! 🎉",
+          subtitle: "NTN Certificate & Tax Registration File Uploaded",
+          status: "Completed",
+          statusLabel: "Completed & Ready",
+          statusType: "approved",
+          message: "Great news! Your NTN registration has been successfully processed and your official document is now ready for download.",
+          adminNotes: admin_notes,
+          details: [
+            { label: "Application ID", value: displayId, bold: true },
+            { label: "Category", value: catLabel },
+            { label: "Document Status", value: "Official PDF Ready" },
+            { label: "Completed On", value: new Date().toLocaleDateString() },
+          ],
+          actionUrl: "/portal/completed",
+          actionText: "Download Official Document"
+        });
+
         await sendEmail({
-          to: existing.email,
-          subject: 'Your NTN Document is Ready',
-          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:20px;"><div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;"><div style="background:linear-gradient(135deg,#1a5276,#2980b9);padding:25px;text-align:center;"><h1 style="color:#fff;margin:0;font-size:20px;">DIGITAX</h1><p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:12px;">Document Ready</p></div><div style="padding:25px;"><p style="color:#1a202c;font-size:14px;">Dear ${existing.name || 'Valued Client'},</p><h2 style="color:#16a34a;font-size:18px;margin:15px 0 10px;">Your NTN Document is Ready</h2><p style="color:#2d3748;font-size:14px;line-height:1.6;">Your completed NTN Registration document has been uploaded. You can download it from the Completed Files section in your portal.</p><div style="text-align:center;margin:20px 0;"><a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/completed" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:14px;">View Documents</a></div></div></div></div>`,
-          text: `Dear ${existing.name || 'Client'}, your NTN Registration document is ready. View it in your portal: ${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/completed`
+          to: clientEmail,
+          subject: `Your Official NTN Document is Ready - ${displayId}`,
+          html,
+          text: `Dear ${clientName},\n\nYour NTN Registration document is ready for download.\n\nApplication ID: ${displayId}\nView and Download: ${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/completed\n\n--\nDIGITAX Team`
         });
       }
     }
@@ -67,17 +98,20 @@ export async function PATCH(req) {
     // Notify user if status changed
     if (status !== undefined && status !== existing.status) {
       const statusLabels = {
-        'pending': 'Pending',
+        'pending': 'Pending Review',
         'in-review': 'In Review',
-        'in-progress': 'In Progress',
-        'completed': 'Completed',
-        'rejected': 'Rejected'
+        'in-progress': 'Processing with FBR',
+        'completed': 'Completed & Approved',
+        'rejected': 'Application Rejected'
       };
       const statusLabel = statusLabels[status] || status;
-      const notifTitle = status === 'rejected' ? 'Application Rejected' : `Application Status: ${statusLabel}`;
-      const notifMsg = status === 'rejected'
-        ? `Your NTN Registration application was rejected. ${admin_notes ? 'Reason: ' + admin_notes : 'Please contact support for more details.'}`
-        : `Your NTN Registration application is now: ${statusLabel}`;
+      const isReject = status === 'rejected';
+      const isApprove = status === 'completed';
+
+      const notifTitle = isReject ? 'Application Requires Attention' : `Application Status: ${statusLabel}`;
+      const notifMsg = isReject
+        ? `Your NTN Registration application was rejected. ${admin_notes ? 'Reason: ' + admin_notes : 'Please check your email or contact our support team.'}`
+        : `Your NTN Registration application status has been updated to "${statusLabel}".`;
 
       await db.run('INSERT INTO notifications (user_id, title, message, type, link) VALUES (?, ?, ?, ?, ?)', [
         existing.user_id,
@@ -87,47 +121,34 @@ export async function PATCH(req) {
         '/portal/applications'
       ]);
 
-      // Email
-      if (existing.email) {
-        const isReject = status === 'rejected';
-        const isApprove = status === 'completed';
-        const accentColor = isReject ? '#dc2626' : isApprove ? '#16a34a' : '#1a5276';
-        const safeNotes = (admin_notes || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      if (clientEmail) {
+        const html = buildStatusNotificationEmail({
+          recipientName: clientName,
+          title: isReject ? "Application Update Required" : isApprove ? "Application Approved! 🎉" : "Application Status Update",
+          subtitle: `NTN Registration & Advisory &bull; Ref: ${displayId}`,
+          status: status,
+          statusLabel: statusLabel,
+          statusType: isReject ? "rejected" : isApprove ? "approved" : "pending",
+          message: isReject 
+            ? "Your NTN Registration application was reviewed by our tax consultants and requires your attention."
+            : `Your NTN Registration application status has been updated to "${statusLabel}". Our certified consultants are actively working on your file.`,
+          adminNotes: admin_notes,
+          details: [
+            { label: "Application Ref", value: displayId, bold: true },
+            { label: "Service", value: catLabel },
+            { label: "Status", value: statusLabel, bold: true },
+            { label: "Payment Status", value: (payment_status || existing.payment_status || "Pending").toUpperCase() },
+            { label: "Last Updated", value: new Date().toLocaleString() }
+          ],
+          actionUrl: "/portal/applications",
+          actionText: "View & Track Application"
+        });
 
         await sendEmail({
-          to: existing.email,
-          subject: notifTitle,
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:20px;">
-              <div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
-                <div style="background:linear-gradient(135deg,${accentColor},${accentColor}dd);padding:25px;text-align:center;">
-                  <h1 style="color:#fff;margin:0;font-size:20px;">DIGITAX</h1>
-                  <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:12px;">${isReject ? 'Application Rejected' : isApprove ? 'Application Approved' : 'Application Update'}</p>
-                </div>
-                <div style="padding:25px;">
-                  <p style="color:#1a202c;font-size:14px;margin:0 0 10px;">Dear ${existing.name || 'Valued Client'},</p>
-                  <h2 style="color:${accentColor};font-size:18px;margin:10px 0;">${notifTitle}</h2>
-                  <div style="background:#f7fafc;border-left:4px solid ${accentColor};padding:12px 15px;border-radius:6px;margin:15px 0;">
-                    <p style="color:#2d3748;font-size:14px;line-height:1.6;margin:0;">${notifMsg}</p>
-                  </div>
-                  ${safeNotes ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:12px 15px;margin:15px 0;">
-                    <p style="color:#92400e;font-size:11px;font-weight:bold;margin:0 0 5px;text-transform:uppercase;letter-spacing:0.5px;">Admin Note</p>
-                    <p style="color:#78350f;font-size:13px;line-height:1.5;margin:0;">${safeNotes}</p>
-                  </div>` : ''}
-                  <table style="width:100%;border-collapse:collapse;margin:15px 0;">
-                    <tr><td style="padding:8px 12px;background:#f7fafc;border:1px solid #e2e8f0;font-size:12px;color:#718096;width:40%;">Application ID</td><td style="padding:8px 12px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;font-weight:bold;">#${existing.id}</td></tr>
-                    <tr><td style="padding:8px 12px;background:#f7fafc;border:1px solid #e2e8f0;font-size:12px;color:#718096;">Status</td><td style="padding:8px 12px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:${accentColor};font-weight:bold;">${statusLabel}</td></tr>
-                    <tr><td style="padding:8px 12px;background:#f7fafc;border:1px solid #e2e8f0;font-size:12px;color:#718096;">Payment Status</td><td style="padding:8px 12px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;">${payment_status || existing.payment_status}</td></tr>
-                  </table>
-                  <div style="text-align:center;margin:20px 0;">
-                    <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/applications" style="display:inline-block;background:${accentColor};color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:14px;">View Application</a>
-                  </div>
-                  <p style="color:#a0aec0;font-size:11px;text-align:center;margin:15px 0 0;border-top:1px solid #e2e8f0;padding-top:12px;">This is an automated notification from DIGITAX.</p>
-                </div>
-              </div>
-            </div>
-          `,
-          text: `Dear ${existing.name || 'Client'},\n\n${notifTitle}\n\n${notifMsg}\n\n${admin_notes ? 'Admin Note: ' + admin_notes + '\n\n' : ''}Application: #${existing.id}\nStatus: ${statusLabel}\n\nView: ${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/applications\n\n--\nDIGITAX Team`
+          to: clientEmail,
+          subject: `${notifTitle} - Ref: ${displayId}`,
+          html,
+          text: `Dear ${clientName},\n\n${notifTitle}\n\n${notifMsg}\n\n${admin_notes ? 'Consultant Notes: ' + admin_notes + '\n\n' : ''}Application: ${displayId}\nStatus: ${statusLabel}\n\nTrack progress: ${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/applications\n\n--\nDIGITAX Team`
         });
       }
     }
@@ -135,6 +156,28 @@ export async function PATCH(req) {
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (error) {
     console.error("Admin applications PATCH error:", error);
+    return new Response(JSON.stringify({ success: false, error: "Server error." }), { status: 500 });
+  }
+}
+
+export async function DELETE(req) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return new Response(JSON.stringify({ success: false, error: "Application ID is required." }), { status: 400 });
+    }
+
+    // Soft delete
+    await db.run(
+      "UPDATE ntn_applications SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [id]
+    );
+
+    return new Response(JSON.stringify({ success: true, message: "Application deleted successfully." }), { status: 200 });
+  } catch (error) {
+    console.error("Admin applications DELETE error:", error);
     return new Response(JSON.stringify({ success: false, error: "Server error." }), { status: 500 });
   }
 }

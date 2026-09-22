@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/ToastProvider";
+import PreFooterContactBar from "./PreFooterContactBar";
 
 export default function Footer({ settings = [] }) {
   const { showToast } = useToast();
   const [email, setEmail] = useState("");
+  const [logoError, setLogoError] = useState(false);
   
   const title = settings.find(s => s.key === "site_title")?.value || "DIGITAX";
   const slogan = settings.find(s => s.key === "site_slogan")?.value || "File Your Taxes In Just 6 Minutes With Our Qualified Consultants!";
   const logoUrl = settings.find(s => s.key === "site_logo")?.value;
-  const copyright = settings.find(s => s.key === "footer_copyright")?.value || "© 2018–2026 Befiler (Pvt) Limited";
+  const copyright = settings.find(s => s.key === "footer_copyright")?.value || "© 2018–2026 Digitax (Pvt) Limited";
   const poweredBy = settings.find(s => s.key === "footer_powered_by")?.value || "Powered by Arittek";
   const phone = settings.find(s => s.key === "contact_phone")?.value || "+92 300 1234567";
   const contactEmail = settings.find(s => s.key === "contact_email")?.value || "info@digitax.pk";
@@ -29,7 +31,9 @@ export default function Footer({ settings = [] }) {
   };
 
   return (
-    <footer className="bg-gray-900 text-white mt-20 md:mt-32 relative overflow-hidden pt-16 md:pt-20">
+    <div className="w-full mt-16 md:mt-24">
+      <PreFooterContactBar settings={settings} />
+      <footer className="bg-gray-900 text-white relative overflow-hidden pt-16 md:pt-20">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(0,86,168,0.15),transparent_40%)]"></div>
       
       <div className="max-w-[1400px] w-[92%] md:w-[85%] mx-auto relative z-10">
@@ -39,8 +43,8 @@ export default function Footer({ settings = [] }) {
           {/* Brand Column */}
           <div className="flex flex-col gap-5 sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.href = "/"}>
-              {logoUrl ? (
-                <img src={logoUrl} alt={title} className="h-10 object-contain brightness-0 invert" />
+              {logoUrl && !logoError ? (
+                <img src={logoUrl} alt={title} className="h-10 object-contain" onError={() => setLogoError(true)} />
               ) : (
                 <>
                   <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0">D</div>
@@ -71,7 +75,7 @@ export default function Footer({ settings = [] }) {
             <nav className="flex flex-col gap-2.5 text-sm text-gray-400">
               <a href="/" className="hover:text-primary transition-colors">Home</a>
               <a href="/services" className="hover:text-primary transition-colors">Business Services</a>
-              <a href="/#tax-tool" className="hover:text-primary transition-colors">Tax Tool</a>
+              <a href="/tools/salary-tax-calculator" className="hover:text-primary transition-colors">Tax Calculator</a>
               <a href="/sales-tax" className="hover:text-primary transition-colors">Sales Tax</a>
             </nav>
           </div>
@@ -118,5 +122,6 @@ export default function Footer({ settings = [] }) {
         </div>
       </div>
     </footer>
+    </div>
   );
 }

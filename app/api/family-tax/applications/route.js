@@ -337,44 +337,156 @@ export async function POST(req) {
 
     // Send Notification if submitted
     if (!isDraft) {
+      const displayId = Number(applicationId) < 2192 ? (2191 + Number(applicationId || 1)) : applicationId;
+
       await db.run(`
         INSERT INTO notifications (user_id, title, message, type, link)
         VALUES (?, ?, ?, 'info', ?)
       `, [
         decoded.id,
         'Family Tax Filing Application Submitted',
-        `Your application #${orderNumber} has been submitted. Please complete payment to begin processing.`,
+        `Your application #${displayId} (${orderNumber}) has been submitted. Our team is reviewing your documents.`,
         `/portal/family-tax/${applicationId}`
       ]);
 
-      // Send Emails
-      const adminEmail = process.env.ADMIN_EMAIL || "info@digitax.pk";
+      // Fetch Admin Email & Logo
+      const adminEmailRow = await db.get("SELECT value FROM settings WHERE `key` = 'admin_email'");
+      const adminEmail = adminEmailRow?.value || process.env.ADMIN_EMAIL || "info@digitax.com";
       const clientEmail = applicant.email || decoded.email;
 
-      // Email to Client
+      // 1. Email to Client
       await sendEmail({
         to: clientEmail,
-        subject: `Family Tax Filing - Application Received (#${orderNumber})`,
-        text: `Dear ${applicant.fullName || 'Client'},\n\nYour Family Tax Filing application (#${orderNumber}) has been submitted successfully.\n\nPlease proceed to complete your payment to begin processing. You can view your application status in your portal.\n\nThank you,\nLaw Website Team`
+        subject: `Family Tax Filing Application Submitted - #${displayId}`,
+        html: `
+          <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#f4f7fb;padding:24px;">
+            <div style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 20px rgba(0,0,0,0.05);">
+              <div style="background:linear-gradient(135deg,#0056A8,#0077cc);padding:30px;text-align:center;">
+                <div style="display:inline-block;background:#ffffff;padding:8px 16px;border-radius:10px;margin-bottom:12px;">
+                  <span style="font-size:20px;font-weight:900;color:#0056A8;letter-spacing:1px;">DIGITAX</span>
+                </div>
+                <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:800;">Application Received</h1>
+                <p style="color:rgba(255,255,255,0.9);margin:6px 0 0;font-size:13px;">Family Income Tax & Wealth Filing</p>
+              </div>
+              <div style="padding:30px;">
+                <h2 style="color:#111827;font-size:18px;margin:0 0 6px;">Application Submitted Successfully!</h2>
+                <p style="color:#6b7280;font-size:14px;margin:0 0 20px;">Dear ${applicant.fullName || 'Valued Client'}, thank you for choosing DIGITAX for your family tax return preparation.</p>
+                <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;width:40%;">Application ID</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#0056A8;font-weight:bold;">#${displayId}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Order Reference</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;">${orderNumber}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Primary Applicant</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;">${applicant.fullName}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">CNIC</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;font-family:monospace;">${applicant.cnic}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Total Fee</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;font-weight:bold;">Rs ${(parseFloat(amount) || 5000).toLocaleString()}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Status</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#d97706;font-weight:bold;">Pending Review</td></tr>
+                </table>
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px;margin-bottom:24px;">
+                  <p style="color:#1e40af;font-size:13px;margin:0;line-height:1.5;">Our specialized tax consultant will review your wealth statements, deductions, and family assets before final submission to FBR.</p>
+                </div>
+                <div style="text-align:center;margin:24px 0;">
+                  <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/family-tax/${applicationId}" style="display:inline-block;background:#0056A8;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 32px;border-radius:10px;box-shadow:0 4px 12px rgba(0,86,168,0.25);">View Application Status</a>
+                </div>
+                <p style="color:#94a3b8;font-size:12px;text-align:center;margin:20px 0 0;border-top:1px solid #f1f5f9;padding-top:16px;">This is an automated notification from DIGITAX (Pvt) Limited.</p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Dear ${applicant.fullName || 'Client'},\n\nYour Family Tax Filing application (#${displayId} - ${orderNumber}) has been submitted successfully.\n\nThank you,\nDIGITAX Team`
       });
 
-      // Email to Admin
+      // 2. Email to Admin (info@digitax.com)
       await sendEmail({
         to: adminEmail,
-        subject: `New Family Tax Application (#${orderNumber})`,
-        text: `A new Family Tax Filing application (#${orderNumber}) has been submitted by ${applicant.fullName || 'a client'}.\n\nCNIC: ${applicant.cnic}\nEmail: ${clientEmail}\n\nPlease review it in the admin dashboard.`
+        subject: `🚨 New Family Tax Application Received - #${displayId}`,
+        html: `
+          <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#f4f7fb;padding:24px;">
+            <div style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+              <div style="background:#111827;padding:24px;text-align:center;">
+                <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:800;">DIGITAX Admin Alert</h1>
+                <p style="color:#9ca3af;margin:4px 0 0;font-size:13px;">New Family Tax Filing Submission</p>
+              </div>
+              <div style="padding:28px;">
+                <p style="color:#111827;font-size:15px;margin:0 0 16px;">A new Family Tax Filing application has been submitted by ${applicant.fullName || 'a client'}.</p>
+                <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;width:40%;">Application ID</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#0056A8;font-weight:bold;">#${displayId}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Order Number</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;">${orderNumber}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Applicant Name</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;font-weight:bold;">${applicant.fullName}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">CNIC</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;">${applicant.cnic}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Mobile / WhatsApp</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;">${applicant.mobile || applicant.whatsapp}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Email</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;">${clientEmail}</td></tr>
+                  <tr><td style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;color:#64748b;">Amount</td><td style="padding:10px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#111827;font-weight:bold;">Rs ${(parseFloat(amount) || 5000).toLocaleString()}</td></tr>
+                </table>
+                <div style="text-align:center;margin:24px 0;">
+                  <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/admin/family-tax" style="display:inline-block;background:#0056A8;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 32px;border-radius:10px;">Review in Admin Panel</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `New Family Tax Application #${displayId} (${orderNumber}) from ${applicant.fullName} (${clientEmail}). CNIC: ${applicant.cnic}. View in Admin Panel: ${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/admin/family-tax`
       });
     }
+
+    const rawAppId = applicationId;
+    const finalDisplayId = Number(rawAppId) < 2192 ? (2191 + Number(rawAppId || 1)) : rawAppId;
 
     return NextResponse.json({
       success: true,
       message: isDraft ? 'Draft saved successfully' : 'Application submitted successfully',
-      applicationId,
+      applicationId: finalDisplayId,
+      rawId: rawAppId,
       orderNumber
     });
 
   } catch (error) {
     console.error('Error saving family application:', error);
     return NextResponse.json({ success: false, error: 'Failed to save application' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('admin_token')?.value || cookieStore.get('token')?.value;
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Application ID is required.' }, { status: 400 });
+    }
+
+    // Verify ownership
+    const app = await db.get(
+      "SELECT id, status FROM family_applications WHERE id = ? AND user_id = ? AND (deleted_at IS NULL OR deleted_at = '')",
+      [id, decoded.id]
+    );
+
+    if (!app) {
+      return NextResponse.json({ success: false, error: 'Application not found or unauthorized.' }, { status: 404 });
+    }
+
+    // Lifecycle check: block deletion for applications under review or beyond
+    const blockedStatuses = ['Under Review', 'Processing', 'FBR Submitted', 'Completed'];
+    if (blockedStatuses.includes(app.status)) {
+      return NextResponse.json({
+        success: false,
+        error: 'This application is currently under review or completed and cannot be deleted. Please contact support for assistance.'
+      }, { status: 400 });
+    }
+
+    // Soft delete
+    await db.run(
+      "UPDATE family_applications SET deleted_at = NOW(), deleted_by = ? WHERE id = ? AND user_id = ?",
+      [decoded.id, id, decoded.id]
+    );
+
+    return NextResponse.json({ success: true, message: 'Application cancelled successfully.' });
+  } catch (error) {
+    console.error('Error deleting family application:', error);
+    return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
   }
 }

@@ -209,8 +209,8 @@ export default function ProductsTab() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl relative anim-slide-up max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto anim-fade-in" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl relative my-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-6">{editingItem ? "Edit Product Card" : "New Product Card"}</h3>
             <form onSubmit={handleSave} className="flex flex-col gap-4">
               

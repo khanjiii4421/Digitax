@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
 import db from '@/lib/db';
-import { sendEmail } from '@/lib/email';
+import { sendEmail, buildStatusNotificationEmail } from '@/lib/email';
 
 export async function PATCH(req, { params }) {
   try {
@@ -129,47 +129,33 @@ export async function PATCH(req, { params }) {
 
       const user = await db.get("SELECT email, name FROM users WHERE id = ?", [application.user_id]);
       if (user && user.email) {
-        // Email type styling
         const isReject = action === 'reject_payment' || (action === 'update_status' && (status || '').toLowerCase().includes('reject'));
         const isApprove = action === 'approve_payment' || (action === 'update_status' && status === 'Completed');
-        const accentColor = isReject ? '#dc2626' : isApprove ? '#16a34a' : '#1a5276';
-        const headerText = isReject ? 'Application Requires Attention' : isApprove ? 'Application Approved' : 'Application Update';
         const fullName = user.name || 'Valued Client';
-        const safeNotes = (notes || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+
+        const html = buildStatusNotificationEmail({
+          recipientName: fullName,
+          title: isReject ? "Application Notice" : isApprove ? "Application Approved! 🎉" : "Family Tax Status Update",
+          subtitle: `Family Tax Filing &bull; Order #${application.order_number}`,
+          status: updatedStatus,
+          statusLabel: updatedStatus,
+          statusType: isReject ? "rejected" : isApprove ? "approved" : "info",
+          message: notifMsg,
+          adminNotes: notes,
+          details: [
+            { label: "Order Number", value: `#${application.order_number}`, bold: true },
+            { label: "Payment Status", value: updatedPaymentStatus },
+            { label: "Application Status", value: updatedStatus, bold: true },
+            { label: "Updated At", value: new Date().toLocaleString() }
+          ],
+          actionUrl: `/portal/family-tax/${id}`,
+          actionText: "View Case in Portal"
+        });
 
         await sendEmail({
           to: user.email,
-          subject: notifTitle,
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:20px;">
-              <div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
-                <div style="background:linear-gradient(135deg,${accentColor},${accentColor}dd);padding:30px;text-align:center;">
-                  <h1 style="color:#fff;margin:0;font-size:22px;">DIGITAX</h1>
-                  <p style="color:rgba(255,255,255,0.85);margin:5px 0 0;font-size:13px;">${headerText}</p>
-                </div>
-                <div style="padding:30px;">
-                  <p style="color:#1a202c;font-size:15px;margin:0 0 5px;">Dear ${fullName},</p>
-                  <p style="color:#1a202c;font-size:18px;font-weight:bold;margin:15px 0 10px;">${notifTitle}</p>
-                  <div style="background:#f7fafc;border-left:4px solid ${accentColor};padding:15px 18px;border-radius:6px;margin:20px 0;">
-                    <p style="color:#2d3748;font-size:14px;line-height:1.6;margin:0;">${notifMsg}</p>
-                  </div>
-                  ${safeNotes ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:12px 15px;margin:20px 0;">
-                    <p style="color:#92400e;font-size:12px;font-weight:bold;margin:0 0 5px;text-transform:uppercase;letter-spacing:0.5px;">Admin Note</p>
-                    <p style="color:#78350f;font-size:14px;line-height:1.5;margin:0;">${safeNotes}</p>
-                  </div>` : ''}
-                  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-                    <tr><td style="padding:8px 12px;background:#f7fafc;border:1px solid #e2e8f0;font-size:12px;color:#718096;width:40%;">Order Number</td><td style="padding:8px 12px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;font-weight:bold;">#${application.order_number}</td></tr>
-                    <tr><td style="padding:8px 12px;background:#f7fafc;border:1px solid #e2e8f0;font-size:12px;color:#718096;">Payment Status</td><td style="padding:8px 12px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;">${updatedPaymentStatus}</td></tr>
-                    <tr><td style="padding:8px 12px;background:#f7fafc;border:1px solid #e2e8f0;font-size:12px;color:#718096;">Application Status</td><td style="padding:8px 12px;background:#fff;border:1px solid #e2e8f0;font-size:13px;color:#1a202c;">${updatedStatus}</td></tr>
-                  </table>
-                  <div style="text-align:center;margin:25px 0;">
-                    <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/family-tax/${id}" style="display:inline-block;background:${accentColor};color:#fff;text-decoration:none;padding:12px 30px;border-radius:8px;font-weight:bold;font-size:14px;">View in Portal</a>
-                  </div>
-                  <p style="color:#a0aec0;font-size:12px;text-align:center;margin:20px 0 0;border-top:1px solid #e2e8f0;padding-top:15px;">This is an automated notification from DIGITAX. Please do not reply to this email.<br>For support, log in to your portal and use the contact form.</p>
-                </div>
-              </div>
-            </div>
-          `,
+          subject: `${notifTitle} - #${application.order_number}`,
+          html,
           text: `Dear ${fullName},\n\n${notifTitle}\n\n${notifMsg}\n\n${notes ? 'Admin Note: ' + notes + '\n\n' : ''}Order: #${application.order_number}\nPayment Status: ${updatedPaymentStatus}\nApplication Status: ${updatedStatus}\n\nView in Portal: ${process.env.NEXT_PUBLIC_BASE_URL || 'https://digitax.pk'}/portal/family-tax/${id}\n\n--\nDIGITAX Team`
         });
       }

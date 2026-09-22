@@ -26,17 +26,17 @@ export async function POST(req) {
     // Validation
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid file type. Only PDF, JPG, and PNG files are allowed.' 
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid file type. Only PDF, JPG, and PNG files are allowed.'
       }, { status: 400 });
     }
 
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'File size exceeds maximum limit of 10MB.' 
+      return NextResponse.json({
+        success: false,
+        error: 'File size exceeds maximum limit of 10MB.'
       }, { status: 400 });
     }
 

@@ -27,12 +27,12 @@ export default function NTNRegistration() {
   const [cameraActive, setCameraActive] = useState(false);
   const [resumed, setResumed] = useState(false);
 
-  // Coupon & Fee States
-  const BASE_FEE = 1500;
+  // Coupon & Dynamic Fee States
+  const [baseFee, setBaseFee] = useState(1500);
   const [couponCode, setCouponCode] = useState("");
   const [couponApplied, setCouponApplied] = useState(false);
   const [discountAmount, setDiscountAmount] = useState(0);
-  const [finalFee, setFinalFee] = useState(BASE_FEE);
+  const [finalFee, setFinalFee] = useState(1500);
   const [couponMsg, setCouponMsg] = useState({ text: "", error: false });
   const [validatingCoupon, setValidatingCoupon] = useState(false);
   const [loadingMethods, setLoadingMethods] = useState(true);
@@ -45,9 +45,42 @@ export default function NTNRegistration() {
   const selfieInputRef = useRef(null);
   const proofInputRef = useRef(null);
 
-  // Fetch active payment methods
+  // Fetch active payment methods & dynamic service pricing
   useEffect(() => {
     setLoadingMethods(true);
+    
+    // Fetch pricing
+    fetch("/api/service-pricing?key=ntn-registration")
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.data) {
+          const fee = parseFloat(d.data.total_fee) || 1500;
+          setBaseFee(fee);
+          setFinalFee(fee);
+
+          const urlCoupon = searchParams.get("coupon");
+          if (urlCoupon) {
+            setCouponCode(urlCoupon.toUpperCase());
+            fetch("/api/coupons/validate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ code: urlCoupon, amount: fee })
+            })
+              .then(res => res.json())
+              .then(cData => {
+                if (cData.success) {
+                  setCouponApplied(true);
+                  setDiscountAmount(cData.discountAmount);
+                  setFinalFee(cData.finalAmount);
+                  setCouponMsg({ text: `Promotional Coupon Applied! Saved PKR ${cData.discountAmount}`, error: false });
+                }
+              })
+              .catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
+
     fetch("/api/admin/payment-methods")
       .then(r => r.json())
       .then(d => {
@@ -223,7 +256,7 @@ export default function NTNRegistration() {
           payment_proof_url: paymentProof,
           coupon_code: couponApplied ? couponCode : '',
           discount_amount: couponApplied ? discountAmount : 0,
-          amount: couponApplied ? finalFee : BASE_FEE
+          amount: couponApplied ? finalFee : baseFee
         }),
       });
       const data = await res.json();
@@ -249,7 +282,7 @@ export default function NTNRegistration() {
       const res = await fetch("/api/coupons/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: couponCode, amount: BASE_FEE })
+        body: JSON.stringify({ code: couponCode, amount: baseFee })
       });
       const data = await res.json();
       if (data.success) {
@@ -258,20 +291,21 @@ export default function NTNRegistration() {
         setFinalFee(data.finalAmount);
         setCouponMsg({ text: `Coupon "${data.code}" applied! You saved PKR ${data.discountAmount}`, error: false });
       } else {
-        setCouponMsg({ text: data.error || "Invalid coupon code", error: true });
+        setCouponMsg({ text: data.error || "Invalid coupon code.", error: true });
+        setCouponApplied(false);
       }
-    } catch (err) {
-      setCouponMsg({ text: "Error validating coupon", error: true });
-    } finally {
-      setValidatingCoupon(false);
+    } catch (e) {
+      setCouponMsg({ text: "Failed to validate coupon.", error: true });
     }
+    setValidatingCoupon(false);
   };
 
-  const removeCoupon = () => {
-    setCouponApplied(false);
+  // Remove coupon
+  const handleRemoveCoupon = () => {
     setCouponCode("");
+    setCouponApplied(false);
     setDiscountAmount(0);
-    setFinalFee(BASE_FEE);
+    setFinalFee(baseFee);
     setCouponMsg({ text: "", error: false });
   };
 
@@ -460,7 +494,7 @@ export default function NTNRegistration() {
                     <p className="text-xs font-bold text-green-800">Coupon "{couponCode}" Applied</p>
                     <p className="text-[11px] text-green-700 mt-0.5">You saved PKR {discountAmount}!</p>
                   </div>
-                  <button onClick={removeCoupon} className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 px-3 py-1.5 rounded-lg">Remove</button>
+                  <button onClick={handleRemoveCoupon} className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 px-3 py-1.5 rounded-lg cursor-pointer">Remove</button>
                 </div>
               ) : (
                 <>

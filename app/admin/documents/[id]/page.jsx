@@ -81,9 +81,30 @@ export default function AdminApplicationDocuments({ params }) {
 
   if (error || !appData) {
     return (
-      <div className="p-10 text-center">
-        <p className="text-red-500 font-bold mb-4">{error || "No application found"}</p>
-        <Link href="/admin/family-tax" className="text-primary font-bold hover:underline">Back to Applications</Link>
+      <div className="max-w-xl mx-auto my-12 bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center anim-fade-in">
+        <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-text-primary mb-2">Application Documents Not Found</h2>
+        <p className="text-text-secondary text-sm mb-6">
+          {error || "The application you are trying to view does not exist or may have been deleted."}
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          <Link
+            href="/admin/applications"
+            className="bg-primary text-white font-bold px-6 py-2.5 rounded-xl text-sm hover:opacity-90 transition-all inline-block"
+          >
+            NTN Applications
+          </Link>
+          <Link
+            href="/admin/family-tax"
+            className="border border-gray-200 text-text-secondary font-bold px-6 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-all inline-block"
+          >
+            Family Tax Applications
+          </Link>
+        </div>
       </div>
     );
   }

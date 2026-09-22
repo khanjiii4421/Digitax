@@ -9,7 +9,7 @@ export async function POST(req) {
   try {
     let email, name, oauthId;
 
-    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
     // If google-auth-library is available and client ID is set, verify the token
     if (!googleClientId) {

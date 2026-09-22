@@ -7,6 +7,23 @@ export default function LoginPage() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState("signin"); // signin | signup
   const [showPassword, setShowPassword] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState("/portal");
+
+  // Read and validate redirect param on mount (prevent open redirect)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("redirect") || params.get("returnUrl") || "";
+      // Only allow internal paths (start with /) to prevent open redirects
+      if (raw && raw.startsWith("/") && !raw.startsWith("//")) {
+        setRedirectUrl(raw);
+      }
+    }
+  }, []);
+
+  const safeRedirect = (url) => {
+    window.location.href = url;
+  };
 
   const [signinForm, setSigninForm] = useState({ email: "", password: "", remember: false });
   const [signupForm, setSignupForm] = useState({ name: "", number: "", email: "", cnic: "", password: "" });
@@ -21,59 +38,91 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
 
+  const [googleClientId, setGoogleClientId] = useState(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "");
   const googleBtnRef = useRef(null);
   const googleScriptLoaded = useRef(false);
+  const googleInitialized = useRef(false);
 
-  // Load Google Identity Services
+  // Fetch google client ID from settings if not set in env
   useEffect(() => {
-    if (typeof window !== "undefined" && !googleScriptLoaded.current) {
-      const script = document.createElement("script");
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      script.onload = () => {
-        googleScriptLoaded.current = true;
-        initGoogleSignIn();
-      };
-      script.onerror = () => {
-        console.warn("Google Identity Services script failed to load.");
-      };
-      document.head.appendChild(script);
+    if (!googleClientId) {
+      fetch("/api/settings")
+        .then(r => r.json())
+        .then(data => {
+          const list = data?.settings || (Array.isArray(data) ? data : []);
+          const cid = list.find?.(s => s.key === "google_client_id")?.value;
+          if (cid) setGoogleClientId(cid);
+        })
+        .catch(() => {});
     }
-  }, []);
+  }, [googleClientId]);
+
+  // Load Google Identity Services script
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (googleScriptLoaded.current) {
+      if (window.google && googleClientId) initGoogleSignIn();
+      return;
+    }
+
+    const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (existingScript) {
+      googleScriptLoaded.current = true;
+      if (window.google && googleClientId) initGoogleSignIn();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      googleScriptLoaded.current = true;
+      if (googleClientId) initGoogleSignIn();
+    };
+    script.onerror = () => {
+      console.warn("[DIGITAX] Google Identity Services script failed to load.");
+    };
+    document.head.appendChild(script);
+  }, [googleClientId]);
 
   const initGoogleSignIn = () => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId || !window.google) return;
+    const clientId = googleClientId || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId || !window.google?.accounts?.id) return;
+    if (googleInitialized.current) return;
     try {
       window.google.accounts.id.initialize({
         client_id: clientId,
         callback: handleGoogleCallback,
         auto_select: false,
+        cancel_on_tap_outside: true,
+        context: "signin",
       });
-    } catch (e) {}
+
+      if (googleBtnRef.current) {
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: "outline",
+          size: "large",
+          width: "100%",
+        });
+      }
+
+      googleInitialized.current = true;
+    } catch (e) {
+      console.warn("[DIGITAX] Google Sign-In init error:", e?.message);
+    }
   };
 
+  // Re-render button when switching tabs or when client ID is available
   useEffect(() => {
-    if (activeTab === "signin" && googleScriptLoaded.current && window.google) {
-      initGoogleSignIn();
-      setTimeout(() => {
-        if (googleBtnRef.current && window.google) {
-          googleBtnRef.current.innerHTML = "";
-          window.google.accounts.id.renderButton(googleBtnRef.current, {
-            type: "standard",
-            theme: "outline",
-            size: "large",
-            text: "signin_with",
-            shape: "rectangular",
-            width: googleBtnRef.current.offsetWidth || 350,
-          });
-        }
-      }, 100);
-    }
-  }, [activeTab]);
+    if (!googleScriptLoaded.current || !window.google?.accounts?.id) return;
+    initGoogleSignIn();
+  }, [activeTab, googleClientId]);
 
   const handleGoogleCallback = async (response) => {
+    if (!response?.credential) {
+      return;
+    }
     setSigninLoading(true);
     try {
       const res = await fetch("/api/auth/google", {
@@ -84,27 +133,44 @@ export default function LoginPage() {
       const resData = await res.json();
       if (res.ok && resData.success) {
         showToast(resData.message || "Signed in with Google!", "success");
-        setTimeout(() => (window.location.href = "/portal"), 1000);
+        setTimeout(() => safeRedirect(redirectUrl), 1000);
       } else {
-        showToast(resData.message || "Google sign-in failed.", "error");
+        showToast(resData.message || "Google sign-in could not be completed. Please try again.", "error");
       }
     } catch (err) {
-      showToast("Google sign-in failed.", "error");
+      showToast("Google sign-in could not be completed. Please try again.", "error");
     } finally {
       setSigninLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const clientId = googleClientId || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
-      showToast("Google Sign-In is being configured. Please use email sign-in.", "error");
+      showToast("Google Sign-In is not configured. Please enter your Google Client ID in Admin Settings or use email sign-in.", "error");
       return;
     }
-    if (window.google) {
-      window.google.accounts.id.prompt();
-    } else {
-      showToast("Google services not loaded yet. Please wait a moment.", "error");
+    if (!window.google?.accounts?.id) {
+      showToast("Google services not loaded yet. Please wait a moment and try again.", "error");
+      return;
+    }
+    try {
+      if (!googleInitialized.current) initGoogleSignIn();
+      // If hidden button rendered, simulate click for direct native OAuth popup
+      if (googleBtnRef.current) {
+        const btn = googleBtnRef.current.querySelector('div[role="button"]') || googleBtnRef.current.querySelector('iframe');
+        if (btn) {
+          btn.click?.();
+          return;
+        }
+      }
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          console.info("[DIGITAX] One Tap not displayed:", notification.getNotDisplayedReason());
+        }
+      });
+    } catch (e) {
+      console.warn("[DIGITAX] Google prompt error:", e?.message);
     }
   };
 
@@ -123,7 +189,7 @@ export default function LoginPage() {
       const resData = await res.json();
       if (res.ok && resData.success) {
         showToast(resData.message || "Signed in successfully!", "success");
-        setTimeout(() => (window.location.href = "/portal"), 1000);
+        setTimeout(() => safeRedirect(redirectUrl), 1000);
       } else {
         showToast(resData.message || "Invalid credentials.", "error");
       }
@@ -156,7 +222,7 @@ export default function LoginPage() {
       const resData = await res.json();
       if (res.ok && resData.success) {
         showToast(resData.message || "Account created successfully!", "success");
-        setTimeout(() => (window.location.href = "/portal"), 1000);
+        setTimeout(() => safeRedirect(redirectUrl), 1000);
       } else {
         showToast(resData.message || "Failed to create account.", "error");
       }
